@@ -23,7 +23,7 @@ Working with Claude CLI is powerful, but managing complex prompts becomes unwiel
 
 ```bash
 # Install
-git clone https://github.com/yourusername/cplus.git
+git clone https://github.com/lin13k/cplus.git
 cd cplus
 ./install.sh
 
@@ -52,7 +52,7 @@ cplus ls
 ### Install
 
 ```bash
-git clone https://github.com/yourusername/cplus.git
+git clone https://github.com/lin13k/cplus.git
 cd cplus
 ./install.sh
 ```
