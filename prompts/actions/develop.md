@@ -16,6 +16,29 @@ Each phase has clear **Entry**, **Responsibilities**, and **Exit** criteria.
 
 ---
 
+## Workspace Structure
+
+```
+.cplus/
+├── specs/                        # Input specifications
+│   └── 0001-feature-name.md
+├── tasks/                        # Development workspace
+│   └── 0001-feature-name/       # Task ID matches spec ID
+│       ├── task.md              # Task definition
+│       ├── plan.md              # Implementation plan
+│       ├── state.md             # Execution state
+│       └── report.md            # Final report
+└── notes/                        # Long-term memory
+    └── architecture.md
+```
+
+**Task Workspace Location**:
+When develop action starts with a spec, create workspace at:
+```
+.cplus/tasks/<ID>-<feature-slug>/
+```
+Where `<ID>-<feature-slug>` matches the spec filename (e.g., if spec is `0001-user-authentication.md`, task workspace is `0001-user-authentication/`)
+
 ## Output Contracts
 
 Maintain structured documentation throughout:
@@ -24,6 +47,8 @@ Maintain structured documentation throughout:
 2. **plan.md**: Checkpoints checklist with files + commands + exit criteria
 3. **state.md**: Current phase, checkpoint progress (≤10 lines), blockers, next action
 4. **report.md**: Summary, Changes, Tests, Decisions, Risks
+
+All files are saved to `.cplus/tasks/<ID>-<feature-slug>/`
 
 ---
 
@@ -55,7 +80,7 @@ Maintain structured documentation throughout:
 **Persona**: DevOps specialist focused on environment setup and isolation
 
 **Allowed**:
-- Create isolated development environment (branch, worktree, etc.)
+- Create isolated development environment using git worktree
 - Install dependencies using project commands
 - Verify setup (type-check, lint, tests pass)
 
@@ -65,15 +90,31 @@ Maintain structured documentation throughout:
 - Running project-specific tasks beyond setup
 
 **Exit Criteria**:
-- Clean environment created and isolated
-- Dependencies installed
+- Clean worktree created and isolated from main working directory
+- Dependencies installed in the worktree
 - Type-check and initial tests pass
 - Ready for implementation
 
+**Isolation Strategy**:
+Use git worktree to create a completely isolated workspace. This:
+- Prevents interference with the main working directory
+- Allows parallel work on multiple tasks
+- Makes cleanup simple (just remove the worktree directory)
+- Keeps uncommitted changes in main branch safe
+
 **Example** (using project commands from .cplus.yml):
 ```bash
-# Create branch
-git checkout -b feature/new-feature
+# Get project name and task identifier
+PROJECT_NAME="$(basename "$(git rev-parse --show-toplevel)")"
+TASK_ID="<ID>-<feature-slug>"  # Extract from spec path (e.g., "0001-feature-name")
+
+# Create isolated worktree OUTSIDE project (sibling directory with prefix)
+# Location: ../<project-name>-<TASK_ID>/
+WORKTREE_PATH="../${PROJECT_NAME}-${TASK_ID}"
+git worktree add "$WORKTREE_PATH" -b "task/$TASK_ID"
+
+# Change to worktree directory
+cd "$WORKTREE_PATH"
 
 # Install dependencies
 {project.commands.install}
@@ -82,6 +123,13 @@ git checkout -b feature/new-feature
 {project.commands.type_check}
 {project.commands.test}
 ```
+
+**Worktree Location Convention**:
+- Worktrees are created as **sibling directories** to the main project
+- Naming pattern: `<project-name>-<TASK_ID>/`
+  - Example: If project is `cplus` and task is `0001-user-auth`, worktree is at `../cplus-0001-user-auth/`
+- Branch naming: `task/<TASK_ID>` (e.g., `task/0001-user-auth`)
+- This avoids nested git repositories and keeps workspace clean
 
 ---
 
@@ -177,8 +225,8 @@ git checkout -b feature/new-feature
 
 **Allowed**:
 - Clean up temporary files and environments
-- Remove development artifacts
-- Prune stale references
+- Remove development artifacts and worktrees
+- Prune stale git references
 - Archive or delete ephemeral workspaces
 
 **Forbidden**:
@@ -186,9 +234,37 @@ git checkout -b feature/new-feature
 - Removing uncommitted work without confirmation
 
 **Exit Criteria**:
-- Environment cleaned up
+- Worktree removed and git references pruned
 - No leftover artifacts
 - Workspace ready for next task
+
+**Example**:
+```bash
+# Get project name and task identifier
+PROJECT_NAME="$(basename "$(git rev-parse --show-toplevel)")"
+TASK_ID="<ID>-<feature-slug>"
+WORKTREE_PATH="../${PROJECT_NAME}-${TASK_ID}"
+
+# Return to main repository if currently in worktree
+cd "$(git rev-parse --show-toplevel)"
+
+# Remove the worktree (after changes are committed and merged)
+git worktree remove "$WORKTREE_PATH"
+
+# Prune stale worktree references
+git worktree prune
+
+# Optional: Delete the task branch if merged to main
+git branch -d "task/$TASK_ID"
+
+# Optional: Remove the worktree directory if git didn't clean it up
+rm -rf "$WORKTREE_PATH"
+```
+
+**Safety Note**:
+- Only remove worktree AFTER all changes are committed and pushed/merged
+- Confirm with user before deleting branches or directories
+- Keep task documentation (.cplus/tasks/<TASK_ID>/) for historical reference
 
 ---
 
@@ -196,17 +272,17 @@ git checkout -b feature/new-feature
 
 Organize knowledge at appropriate levels:
 
-**Long-term memory** (notes/):
+**Long-term memory** (.cplus/notes/):
 - Stable, cross-task knowledge only
 - Architecture, decisions, patterns
 - Append-only; never rewrite history
 
-**Task-level memory** (task.md, plan.md):
+**Task-level memory** (.cplus/tasks/<ID>-<slug>/task.md, plan.md):
 - Valid only for this task
 - May be revised during ARCHITECT phase
 - Should not duplicate long-term notes
 
-**Execution state** (state.md):
+**Execution state** (.cplus/tasks/<ID>-<slug>/state.md):
 - Current phase and checkpoint
 - Concise (≤10 lines summary)
 - Overwritten each iteration
@@ -256,9 +332,11 @@ Ready to proceed?
 ```bash
 # Start with specification
 cplus spec --roles discoverer,specifier
+# Output: .cplus/specs/0001-feature-name.md
 
 # Once spec is approved, develop it
-cplus develop --roles architect specs/0001_feature.md
+cplus develop --roles architect .cplus/specs/0001-feature-name.md
+# Creates: .cplus/tasks/0001-feature-name/
 
 # The develop action guides through all phases:
 # 1. ARCHITECT creates plan

@@ -17,12 +17,13 @@ git clone https://github.com/lin13k/cplus.git
 cd cplus
 ./install.sh
 
-# Interactive mode
+# Interactive mode (no roles by default)
 cplus
 
 # Direct usage
-cplus plan --roles architect
-cplus implement --roles implementer tasks/task.md "focus on tests"
+cplus spec                               # Use spec action without roles
+cplus develop --roles architect          # Add roles when needed
+cplus develop tasks/task.md "focus on tests"
 ```
 
 ## Installation
@@ -40,14 +41,15 @@ Installs to `~/.config/cplus/` and creates `~/.local/bin/cplus` command.
 ### Basic Commands
 
 ```bash
-cplus [action] --roles [roles] [extras...]
+cplus [action] [--roles role1,role2] [extras...]
 
 # Examples
-cplus plan --roles architect              # Use plan action with architect role
-cplus implement --roles impl tasks/1.md   # Add file as context
-cplus review --roles reviewer "check security"  # Add text context
-cplus pick                                 # Interactive selection
-cplus ls                                   # List available prompts
+cplus spec                                # Use spec action (no roles)
+cplus develop --roles architect           # Add architect role when needed
+cplus develop tasks/1.md                  # Add file as context (no roles)
+cplus review --roles reviewer "check security"  # Opt-in to reviewer role
+cplus pick                                # Interactive selection
+cplus ls                                  # List available prompts
 ```
 
 ### Operations
@@ -67,35 +69,35 @@ prompts/
 └── roles/            # How to behave (architect, implementer, etc.)
 ```
 
-Actions define the task, roles define behavior. Compose them as needed:
+Actions define the task. Roles are **opt-in** - use them when you need specific behavior:
 
 ```bash
-cplus plan --roles architect              # Planning with architect mindset
-cplus implement --roles implementer       # Implementing with focus on quality
-cplus review --roles reviewer,architect   # Review with multiple perspectives
+cplus spec                                # Just the spec action
+cplus develop --roles architect           # Add architect role when needed
+cplus review --roles reviewer,architect   # Multiple roles for different perspectives
 ```
 
 ### Advanced Workflows
 
 **`spec`** - Multi-phase specification development (DISCOVERER → SPECIFIER → VALIDATOR → REFINER):
 ```bash
-cplus spec --roles discoverer,specifier
+cplus spec
 ```
-Creates detailed specifications through concrete examples and structured discovery.
+Creates detailed specifications through concrete examples and structured discovery. The action defines all roles internally, so no `--roles` flag needed.
 
 **`develop`** - Complete development lifecycle (ARCHITECT → SETUP → IMPLEMENTER → VERIFIER → REVIEWER → CLEANUP):
 ```bash
-cplus develop --roles architect specs/0001_feature.md
+cplus develop .cplus/specs/0001-feature-name.md
 ```
-Orchestrates full implementation from specification to delivery.
+Orchestrates full implementation from specification to delivery. Roles are defined within the action workflow.
 
 **Full Workflow Example**:
 ```bash
 # 1. Create specification
-cplus spec --roles discoverer
+cplus spec
 
 # 2. Develop from spec
-cplus develop --roles architect specs/0001_feature.md
+cplus develop .cplus/specs/0001-feature-name.md
 ```
 
 ## Project Context
@@ -131,14 +133,10 @@ Auto-detects `.cplus.yml`, `package.json`, or `Makefile`. Use `cplus project ini
 
 ## Composition Flow
 
-When you run `cplus plan --roles architect notes.md "focus on API"`, it composes:
+When you run `cplus develop notes.md "focus on API"`, it composes:
 
 ```markdown
-[Action: plan.md content]
-
-### Roles
-#### architect
-[Role: architect.md content]
+[Action: develop.md content]
 
 ### Project Context
 **Commands**: test: `npm test`, build: `npm run build`
@@ -149,6 +147,14 @@ When you run `cplus plan --roles architect notes.md "focus on API"`, it composes
 [notes.md content]
 #### text
 focus on API
+```
+
+With `--roles architect`, it adds:
+
+```markdown
+### Roles
+#### architect
+[Role: architect.md content]
 ```
 
 This gets piped to `claude`.
@@ -176,9 +182,9 @@ vim actions/my-action.md
 ### Fuzzy Matching
 
 ```bash
-cplus plan     # matches actions/plan.md
-cplus impl     # matches actions/implement.md
---roles arch   # matches roles/architect.md
+cplus spec     # matches actions/spec.md
+cplus dev      # matches actions/develop.md
+--roles arch   # matches roles/architect.md (when roles are used)
 ```
 
 ### Dry Run
@@ -186,13 +192,16 @@ cplus impl     # matches actions/implement.md
 Preview without sending to Claude:
 
 ```bash
-cplus plan --roles architect --dry-run
+cplus develop --dry-run
 ```
 
-### Skip Roles
+### Role Injection
+
+By default, roles are NOT injected. Use `--roles` to opt-in:
 
 ```bash
-cplus my-action --no-roles
+cplus develop                    # No roles
+cplus develop --roles architect  # With architect role
 ```
 
 ## Maintenance

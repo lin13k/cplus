@@ -242,10 +242,11 @@ OPERATIONS
   help           Print this usage information
 
 EXAMPLES
-  cplus                                    # Interactive: pick action + roles
-  cplus plan --roles arch                  # Use 'plan' action with 'arch' role
-  cplus pick --roles review notes/DECISIONS.md
-  cplus tasks/123/task.md --roles arch,impl "be strict"
+  cplus                                    # Interactive: pick action (no roles)
+  cplus spec                               # Use 'spec' action (no roles)
+  cplus develop --roles architect          # Use 'develop' with 'architect' role
+  cplus pick --roles reviewer notes/DECISIONS.md
+  cplus tasks/123/task.md "be strict"      # Use task file (no roles)
   cplus ls actions                         # List available actions
   cplus ls roles                           # List available roles
   cplus role --roles arch,review           # Print resolved role files
@@ -253,10 +254,12 @@ EXAMPLES
   cplus project init                       # Create .cplus.yml template
 
 OPTIONS
-  --roles <role1,role2,...>  Specify roles (comma-separated or repeated)
-  --no-roles                 Skip roles entirely (use when action defines its own)
+  --roles <role1,role2,...>  Inject roles (comma-separated or repeated)
   --dry-run                  Preview composition without sending to claude
   --help, -h                 Show this help message
+
+NOTE
+  By default, NO roles are injected. Use --roles to explicitly add role definitions.
 
 For full specification, see cplus_contract.md
 EOF
@@ -312,7 +315,7 @@ main() {
   local -a roles_array
   local -a extras_array
   local dry_run=false
-  local no_roles=false
+  local inject_roles=false  # Default: no role injection
 
   # Parse arguments
   while [[ $# -gt 0 ]]; do
@@ -321,11 +324,8 @@ main() {
         dry_run=true
         shift
         ;;
-      --no-roles)
-        no_roles=true
-        shift
-        ;;
       --roles)
+        inject_roles=true
         shift
         if [[ $# -eq 0 ]]; then
           echo "Error: --roles requires an argument" >&2
@@ -337,6 +337,7 @@ main() {
         shift
         ;;
       --roles=*)
+        inject_roles=true
         # Handle --roles=arch,impl format
         local roles_value="${1#--roles=}"
         IFS=',' read -rA role_parts <<< "$roles_value"
@@ -364,7 +365,7 @@ main() {
 
   # Handle run and pick operations
   if [[ "$operation" == "run" || "$operation" == "pick" ]]; then
-    handle_run_or_pick "$operation" "$prompt_selector" "$dry_run" "$no_roles" "$roles_array[@]" -- "${extras_array[@]}"
+    handle_run_or_pick "$operation" "$prompt_selector" "$dry_run" "$inject_roles" "$roles_array[@]" -- "${extras_array[@]}"
     exit 0
   fi
 
@@ -856,7 +857,7 @@ handle_run_or_pick() {
   shift
   local dry_run="$1"
   shift
-  local no_roles="$1"
+  local inject_roles="$1"
   shift
 
   # Collect roles (up to --)
@@ -889,9 +890,9 @@ handle_run_or_pick() {
     base_prompt=$(resolve_base_prompt "$prompt_selector")
   fi
 
-  # Resolve roles (skip if --no-roles)
+  # Resolve roles (only if --roles was specified)
   local resolved_roles=""
-  if [[ "$no_roles" != "true" ]]; then
+  if [[ "$inject_roles" == "true" ]]; then
     resolved_roles=$(resolve_roles "${roles_array[@]}")
   fi
 

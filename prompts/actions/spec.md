@@ -105,6 +105,30 @@ Options:
 - Provide **2-4 options** (not too few, not too many)
 - Add context so user can decide without asking more
 
+## Workspace Structure
+
+All specifications are saved to the workspace:
+
+```
+.cplus/
+└── specs/
+    ├── 0001-feature-name.md
+    ├── 0002-another-feature.md
+    └── ...
+```
+
+**Naming Convention**:
+- Format: `<ID>-<feature-slug>.md`
+- ID: 4-digit sequential number (e.g., `0001`, `0002`)
+- Slug: kebab-case, descriptive (e.g., `user-authentication`, `file-upload`)
+- Example: `.cplus/specs/0001-user-authentication.md`
+
+**Output Location**:
+When spec action completes, save the final specification to:
+```
+.cplus/specs/<ID>-<feature-slug>.md
+```
+
 ## Specification Template
 
 ```markdown

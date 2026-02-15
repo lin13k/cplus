@@ -4,7 +4,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$SCRIPT_DIR"  # Script is in project root, not scripts/
 CPLUS_HOME="${CPLUS_HOME:-$HOME/.config/cplus}"
 
 SOURCE_PROMPTS="$PROJECT_ROOT/prompts"
@@ -31,13 +31,13 @@ PATHS:
 
 EXAMPLES:
   # Sync prompts
-  ./scripts/sync-prompts.sh
+  ./sync-prompts.sh
 
   # Preview what would be synced
-  ./scripts/sync-prompts.sh --dry-run
+  ./sync-prompts.sh --dry-run
 
   # Sync with detailed output
-  ./scripts/sync-prompts.sh --verbose
+  ./sync-prompts.sh --verbose
 EOF
 }
 
@@ -72,7 +72,7 @@ fi
 # Check that cplus is installed
 if [[ ! -d "$CPLUS_HOME" ]]; then
   echo "Error: cplus not installed (directory not found: $CPLUS_HOME)" >&2
-  echo "Run: ./scripts/install-cplus.sh" >&2
+  echo "Run: ./install-cplus.sh" >&2
   exit 1
 fi
 
