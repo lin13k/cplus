@@ -63,7 +63,7 @@ cplus ls                                   # List available prompts
 
 ```
 prompts/
-├── actions/          # What to do (plan, implement, review, etc.)
+├── actions/          # What to do (plan, implement, review, spec, develop, etc.)
 └── roles/            # How to behave (architect, implementer, etc.)
 ```
 
@@ -73,6 +73,29 @@ Actions define the task, roles define behavior. Compose them as needed:
 cplus plan --roles architect              # Planning with architect mindset
 cplus implement --roles implementer       # Implementing with focus on quality
 cplus review --roles reviewer,architect   # Review with multiple perspectives
+```
+
+### Advanced Workflows
+
+**`spec`** - Multi-phase specification development (DISCOVERER → SPECIFIER → VALIDATOR → REFINER):
+```bash
+cplus spec --roles discoverer,specifier
+```
+Creates detailed specifications through concrete examples and structured discovery.
+
+**`develop`** - Complete development lifecycle (ARCHITECT → SETUP → IMPLEMENTER → VERIFIER → REVIEWER → CLEANUP):
+```bash
+cplus develop --roles architect specs/0001_feature.md
+```
+Orchestrates full implementation from specification to delivery.
+
+**Full Workflow Example**:
+```bash
+# 1. Create specification
+cplus spec --roles discoverer
+
+# 2. Develop from spec
+cplus develop --roles architect specs/0001_feature.md
 ```
 
 ## Project Context
