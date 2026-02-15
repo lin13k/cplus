@@ -1,0 +1,25 @@
+# cplus project configuration
+project:
+  name: "cplus"
+  description: "Prompt composition tool for Claude CLI"
+
+commands:
+  # Testing
+  test: "./install.sh && cplus ls && ./uninstall.sh"
+
+  # Installation
+  install: "./install.sh"
+  uninstall: "./uninstall.sh"
+  sync: "./sync-prompts.sh"
+
+paths:
+  prompts: "prompts/"
+  actions: "prompts/actions/"
+  roles: "prompts/roles/"
+  scripts: "./"
+
+conventions:
+  - "Use zsh for shell scripts"
+  - "Keep prompts generic and reusable"
+  - "Test all operations before committing"
+  - "Follow Unix philosophy: do one thing well"

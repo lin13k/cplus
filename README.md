@@ -15,6 +15,7 @@ Working with Claude CLI is powerful, but managing complex prompts becomes unwiel
 - ✅ Compose prompts on-the-fly with fuzzy matching
 - ✅ Mix and match roles for different tasks
 - ✅ Attach files and text as additional context
+- ✅ Auto-inject **project-specific commands** and conventions
 - ✅ Use interactive selection when you need it
 - ✅ Keep your prompts organized and maintainable
 
@@ -85,6 +86,7 @@ cplus [operation] [prompt_selector] [options] [extras...]
 | `pick` | Force interactive action selection |
 | `ls [actions\|roles]` | List available prompts |
 | `role --roles ...` | Show resolved role files |
+| `project [show\|init\|validate]` | Manage project configuration |
 | `help` | Show help message |
 
 ### Examples
@@ -212,6 +214,106 @@ focus on performance
 ```
 
 This composed prompt is piped directly to `claude`.
+
+## Project Context
+
+cplus automatically detects and injects project-specific commands, paths, and conventions into your prompts. This makes Claude aware of your project's structure and commands without you having to repeat them every time.
+
+### How It Works
+
+1. **Auto-Detection**: cplus looks for project markers in your current directory:
+   - `.cplus.yml` (explicit config, highest priority)
+   - `package.json` (Node.js projects)
+   - `Makefile` (Make-based projects)
+   - `go.mod`, `Cargo.toml`, etc.
+
+2. **Auto-Injection**: Project context is automatically added to all prompts between roles and extras:
+   ```markdown
+   [Base Prompt]
+
+   ### Roles
+   [Roles...]
+
+   ### Project Context    **Project**: my-app
+   **Commands**:
+   - test: `npm test`
+   - build: `npm run build`
+   **Paths**:
+   - src: `src/`
+   - tests: `tests/`
+   **Conventions**:
+   - Use TypeScript strict mode
+
+   ### Additional Instructions
+   [Extras...]
+   ```
+
+### Creating a `.cplus.yml`
+
+Create a `.cplus.yml` in your project root:
+
+```yaml
+# .cplus.yml
+project:
+  name: "my-app"
+  description: "My awesome application"
+
+commands:
+  # Testing
+  test: "npm test"
+  test_file: "npm test -- <file>"
+
+  # Build & Type Check
+  build: "npm run build"
+  type_check: "npm run type-check"
+  lint: "npm run lint"
+
+  # Development
+  dev: "npm run dev"
+  install: "npm install"
+
+paths:
+  src: "src/"
+  tests: "tests/"
+  config: "config/"
+
+conventions:
+  - "Use TypeScript strict mode"
+  - "Follow Airbnb style guide"
+  - "Write tests for all new features"
+```
+
+### Quick Commands
+
+```bash
+# Show detected project context
+cplus project show
+
+# Create .cplus.yml template
+cplus project init
+
+# Validate project config
+cplus project validate
+```
+
+### Benefits
+
+- ✅ Claude knows your test command automatically
+- ✅ No need to repeat project conventions every time
+- ✅ Consistent paths across all prompts
+- ✅ Works with any project structure
+- ✅ Falls back to package.json/Makefile if no .cplus.yml
+
+### Example Usage
+
+```bash
+# Without project context, you'd have to say:
+cplus verify --roles verifier "run pnpm test to verify"
+
+# With project context, just say:
+cplus verify --roles verifier
+# Claude already knows the test command from .cplus.yml!
+```
 
 ## Creating Custom Prompts
 

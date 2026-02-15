@@ -17,6 +17,214 @@ else
     PROMPTS_DIR="${SCRIPT_DIR:h}/prompts"
 fi
 
+# ============================================================================
+# Project Context Detection
+# ============================================================================
+
+# Find project root by walking up directory tree
+# Returns: path to project root or empty string
+find_project_root() {
+  local current_dir="$PWD"
+
+  while [[ "$current_dir" != "/" ]]; do
+    # Check for project markers
+    if [[ -f "$current_dir/.cplus.yml" ]] || \
+       [[ -f "$current_dir/.git/config" ]] || \
+       [[ -f "$current_dir/package.json" ]] || \
+       [[ -f "$current_dir/Makefile" ]] || \
+       [[ -f "$current_dir/go.mod" ]] || \
+       [[ -f "$current_dir/Cargo.toml" ]]; then
+      echo "$current_dir"
+      return 0
+    fi
+    current_dir="${current_dir:h}"
+  done
+
+  # No project root found
+  return 1
+}
+
+# Parse .cplus.yml config file
+# Args: $1 = config file path
+# Prints: YAML content parsed as key-value pairs
+parse_cplus_yml() {
+  local config_file="$1"
+
+  if [[ ! -f "$config_file" ]]; then
+    return 1
+  fi
+
+  # Simple YAML parser (handles basic format)
+  # Full YAML parser would need yq, but we'll keep it simple
+  cat "$config_file"
+}
+
+# Parse package.json scripts
+# Args: $1 = package.json path
+# Prints: commands in format "name: command"
+parse_package_json() {
+  local pkg_file="$1"
+
+  if [[ ! -f "$pkg_file" ]]; then
+    return 1
+  fi
+
+  if ! command -v jq &> /dev/null; then
+    # jq not available, skip
+    return 1
+  fi
+
+  # Extract scripts
+  jq -r '.scripts | to_entries | .[] | "\(.key): \(.value)"' "$pkg_file" 2>/dev/null
+}
+
+# Parse Makefile targets
+# Args: $1 = Makefile path
+# Prints: targets in format "name: (make target)"
+parse_makefile() {
+  local makefile="$1"
+
+  if [[ ! -f "$makefile" ]]; then
+    return 1
+  fi
+
+  # Extract target names (lines ending with :)
+  grep -E '^[a-zA-Z0-9_-]+:' "$makefile" | sed 's/:.*//' | while read -r target; do
+    echo "$target: make $target"
+  done
+}
+
+# Load project context
+# Returns: project context as formatted text
+load_project_context() {
+  local project_root
+  project_root=$(find_project_root)
+
+  if [[ -z "$project_root" ]]; then
+    return 1
+  fi
+
+  local output=""
+  local has_content=false
+
+  # Try .cplus.yml first
+  if [[ -f "$project_root/.cplus.yml" ]]; then
+    output=$(cat "$project_root/.cplus.yml")
+    has_content=true
+  # Try package.json
+  elif [[ -f "$project_root/package.json" ]]; then
+    local scripts
+    scripts=$(parse_package_json "$project_root/package.json")
+    if [[ -n "$scripts" ]]; then
+      output="project:\n  name: $(basename "$project_root")\n\ncommands:\n"
+      output+=$(echo "$scripts" | sed 's/^/  /')
+      has_content=true
+    fi
+  # Try Makefile
+  elif [[ -f "$project_root/Makefile" ]]; then
+    local targets
+    targets=$(parse_makefile "$project_root/Makefile")
+    if [[ -n "$targets" ]]; then
+      output="project:\n  name: $(basename "$project_root")\n\ncommands:\n"
+      output+=$(echo "$targets" | sed 's/^/  /')
+      has_content=true
+    fi
+  fi
+
+  if [[ "$has_content" == "true" ]]; then
+    echo -e "$output"
+    return 0
+  fi
+
+  return 1
+}
+
+# Format project context for prompt injection
+# Returns: formatted markdown section
+format_project_context() {
+  local config
+  config=$(load_project_context)
+
+  if [[ -z "$config" ]]; then
+    return 0
+  fi
+
+  echo ""
+  echo "### Project Context"
+  echo ""
+
+  # Parse and format the config
+  local in_section=""
+  local project_name=""
+
+  while IFS= read -r line; do
+    # Skip empty lines
+    [[ -z "$line" ]] && continue
+
+    # Detect sections
+    if [[ "$line" =~ ^project: ]]; then
+      in_section="project"
+      continue
+    elif [[ "$line" =~ ^commands: ]]; then
+      in_section="commands"
+      echo "**Commands**:"
+      continue
+    elif [[ "$line" =~ ^paths: ]]; then
+      in_section="paths"
+      echo ""
+      echo "**Paths**:"
+      continue
+    elif [[ "$line" =~ ^conventions: ]]; then
+      in_section="conventions"
+      echo ""
+      echo "**Conventions**:"
+      continue
+    fi
+
+    # Process line based on section
+    if [[ "$in_section" == "project" ]]; then
+      if [[ "$line" =~ name: ]]; then
+        # Extract name value, removing quotes if present
+        project_name="${line#*name:}"
+        project_name="${project_name# }"  # Remove leading space
+        project_name="${project_name#\"}"  # Remove leading quote
+        project_name="${project_name%\"}"  # Remove trailing quote
+        echo "**Project**: $project_name"
+        echo ""
+      fi
+    elif [[ "$in_section" == "commands" ]]; then
+      # Format: "  name: command" -> "- name: `command`"
+      local cmd_line="${line#"${line%%[![:space:]]*}"}"  # Strip leading spaces
+      if [[ "$cmd_line" =~ : ]]; then
+        local name="${cmd_line%%:*}"
+        local cmd="${cmd_line#*: }"
+        # Remove quotes if present
+        cmd="${cmd#\"}"
+        cmd="${cmd%\"}"
+        echo "- $name: \`$cmd\`"
+      fi
+    elif [[ "$in_section" == "paths" ]]; then
+      local path_line="${line#"${line%%[![:space:]]*}"}"  # Strip leading spaces
+      if [[ "$path_line" =~ : ]]; then
+        local name="${path_line%%:*}"
+        local pathval="${path_line#*: }"
+        # Remove quotes if present
+        pathval="${pathval#\"}"
+        pathval="${pathval%\"}"
+        echo "- $name: \`$pathval\`"
+      fi
+    elif [[ "$in_section" == "conventions" ]]; then
+      # Strip leading spaces and dash
+      local conv="${line#"${line%%[![:space:]]*}"}"  # Strip leading spaces
+      conv="${conv#- }"  # Remove leading dash and space
+      # Remove quotes if present
+      conv="${conv#\"}"
+      conv="${conv%\"}"
+      [[ -n "$conv" ]] && echo "- $conv"
+    fi
+  done <<< "$config"
+}
+
 # Print help text
 show_help() {
   cat << 'EOF'
@@ -30,6 +238,7 @@ OPERATIONS
   pick           Force interactive selection of action prompt, then run
   ls             List available prompts and roles
   role           Resolve roles to files and print them
+  project        Manage project configuration (show, init, validate)
   help           Print this usage information
 
 EXAMPLES
@@ -40,6 +249,8 @@ EXAMPLES
   cplus ls actions                         # List available actions
   cplus ls roles                           # List available roles
   cplus role --roles arch,review           # Print resolved role files
+  cplus project show                       # Show detected project context
+  cplus project init                       # Create .cplus.yml template
 
 OPTIONS
   --roles <role1,role2,...>  Specify roles (comma-separated or repeated)
@@ -61,7 +272,7 @@ main() {
   # Parse operation (first arg if it's a known operation)
   if [[ $# -gt 0 ]]; then
     case "$1" in
-      run|pick|ls|role|help|--help|-h)
+      run|pick|ls|role|project|help|--help|-h)
         operation="$1"
         shift
         ;;
@@ -88,6 +299,12 @@ main() {
   # Handle role operation
   if [[ "$operation" == "role" ]]; then
     handle_role "$@"
+    exit 0
+  fi
+
+  # Handle project operation
+  if [[ "$operation" == "project" ]]; then
+    handle_project "$@"
     exit 0
   fi
 
@@ -428,6 +645,9 @@ compose_prompt() {
     fi
   fi
 
+  # Output project context if available
+  format_project_context
+
   # Output extras section if any
   process_extras "${extras[@]}"
 }
@@ -501,6 +721,131 @@ handle_role() {
   else
     echo "No roles selected"
   fi
+}
+
+# Handle project operation
+handle_project() {
+  local subcommand="${1:-show}"
+
+  case "$subcommand" in
+    show)
+      # Show detected project context
+      local project_root
+      project_root=$(find_project_root)
+
+      if [[ -z "$project_root" ]]; then
+        echo "No project detected in current directory or parents"
+        echo ""
+        echo "Looked for: .cplus.yml, .git/, package.json, Makefile, go.mod, Cargo.toml"
+        echo ""
+        echo "Run 'cplus project init' to create a .cplus.yml config"
+        exit 1
+      fi
+
+      echo "Project root: $project_root"
+      echo ""
+
+      # Show which config file was found
+      if [[ -f "$project_root/.cplus.yml" ]]; then
+        echo "Config: .cplus.yml (explicit config)"
+        echo ""
+        cat "$project_root/.cplus.yml"
+      elif [[ -f "$project_root/package.json" ]]; then
+        echo "Config: package.json (auto-detected)"
+        echo ""
+        echo "Commands (from package.json scripts):"
+        parse_package_json "$project_root/package.json" | sed 's/^/  /'
+      elif [[ -f "$project_root/Makefile" ]]; then
+        echo "Config: Makefile (auto-detected)"
+        echo ""
+        echo "Commands (from Makefile targets):"
+        parse_makefile "$project_root/Makefile" | sed 's/^/  /'
+      else
+        echo "Project detected but no recognized config file"
+      fi
+      ;;
+
+    init)
+      # Create .cplus.yml template
+      if [[ -f ".cplus.yml" ]]; then
+        echo "Error: .cplus.yml already exists in current directory" >&2
+        exit 1
+      fi
+
+      cat > .cplus.yml << 'EOF'
+# cplus project configuration
+project:
+  name: "my-project"
+  description: "Project description"
+
+commands:
+  # Testing
+  test: "npm test"
+  test_file: "npm test --"
+
+  # Build & Type Check
+  build: "npm run build"
+  type_check: "npm run type-check"
+  lint: "npm run lint"
+
+  # Development
+  dev: "npm run dev"
+  install: "npm install"
+
+paths:
+  src: "src/"
+  tests: "tests/"
+  config: "./"
+
+conventions:
+  - "Add your project-specific conventions here"
+  - "These will be shown to Claude when composing prompts"
+EOF
+
+      echo "✓ Created .cplus.yml"
+      echo ""
+      echo "Edit .cplus.yml to customize for your project."
+      echo "Run 'cplus project show' to see the detected config."
+      ;;
+
+    validate)
+      # Validate project config
+      local project_root
+      project_root=$(find_project_root)
+
+      if [[ -z "$project_root" ]]; then
+        echo "❌ No project detected"
+        exit 1
+      fi
+
+      echo "✓ Project root found: $project_root"
+
+      if [[ -f "$project_root/.cplus.yml" ]]; then
+        echo "✓ .cplus.yml found"
+
+        # Basic validation (check if it's valid YAML-ish)
+        if grep -q "project:" "$project_root/.cplus.yml" && \
+           grep -q "commands:" "$project_root/.cplus.yml"; then
+          echo "✓ Config structure looks valid"
+        else
+          echo "⚠️  Config may be malformed (missing project: or commands: section)"
+        fi
+      elif [[ -f "$project_root/package.json" ]]; then
+        echo "✓ package.json found (auto-detected)"
+      elif [[ -f "$project_root/Makefile" ]]; then
+        echo "✓ Makefile found (auto-detected)"
+      fi
+
+      echo ""
+      echo "Project context will be injected into prompts automatically."
+      ;;
+
+    *)
+      echo "Unknown project subcommand: $subcommand" >&2
+      echo "Usage: cplus project [show|init|validate]" >&2
+      exit 1
+      ;;
+  esac
 }
 
 # Handle run or pick operation
