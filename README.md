@@ -21,6 +21,27 @@ cd cplus
 ./install.sh                             # or: ./install.sh --with-ecc
 ```
 
+### Structured workflows — the core of cplus
+
+The biggest problem with AI agents on complex tasks: they lose focus, skip steps, and mix concerns. cplus solves this with **phased execution** — each phase has strict boundaries on what Claude can and cannot do.
+
+```bash
+# Spec out a feature through guided discovery
+# Claude walks through 4 phases: DISCOVERER → SPECIFIER → VALIDATOR → REFINER
+# It can't jump to solutions — it has to gather examples and constraints first
+cplus spec "SSO integration with Google and GitHub OAuth"
+
+# Develop it end-to-end from the spec
+# 6 phases: ARCHITECT → SETUP → IMPLEMENTER → VERIFIER → REVIEWER → CLEANUP
+# Architect can't write code. Implementer works one checkpoint at a time.
+# Verifier can't fix bugs — only document them. No skipping phases.
+cplus develop .cplus/specs/0001-sso-integration.md
+
+# develop-v2: same phased control, but delegates to ECC commands
+# IMPLEMENTER → /tdd, VERIFIER → /verify, REVIEWER → /code-review + /security-scan
+cplus develop-v2 .cplus/specs/0001-sso-integration.md
+```
+
 ### Tell Claude what to do — in plain English
 
 ```bash
@@ -41,23 +62,6 @@ cplus review --roles reviewer "focus on auth and input validation"
 ```
 
 Your quoted text and files get composed into the prompt alongside the action and roles.
-
-### Structured workflows — Claude focuses on one thing at a time
-
-```bash
-# 1. Spec out a feature through guided discovery
-#    DISCOVERER → SPECIFIER → VALIDATOR → REFINER
-cplus spec "SSO integration with Google and GitHub OAuth"
-
-# 2. Develop it end-to-end with phased execution
-#    ARCHITECT → SETUP → IMPLEMENTER → VERIFIER → REVIEWER → CLEANUP
-#    Each phase has strict scope — can't write code during planning, can't skip tests
-cplus develop .cplus/specs/0001-sso-integration.md
-
-# 3. Or use develop-v2 with ECC (requires --with-ecc install)
-#    Same phases, but IMPLEMENTER delegates to /tdd, VERIFIER runs /verify, etc.
-cplus develop-v2 .cplus/specs/0001-sso-integration.md
-```
 
 ### Compose files, text, and roles freely
 
