@@ -18,23 +18,65 @@ Optionally integrates with [Everything Claude Code (ECC)](https://github.com/aff
 ```bash
 git clone https://github.com/lin13k/cplus.git
 cd cplus
-
-# cplus only
-./install.sh
-
-# cplus + ECC (for develop-v2)
-./install.sh --with-ecc
-./install.sh --with-ecc --ecc-langs=typescript,python
+./install.sh                             # or: ./install.sh --with-ecc
 ```
 
-```bash
-# Interactive mode (no roles by default)
-cplus
+### Tell Claude what to do — in plain English
 
-# Direct usage
-cplus spec                               # Use spec action without roles
-cplus develop --roles architect          # Add roles when needed
-cplus develop-v2 .cplus/specs/0001-feature.md  # ECC-integrated workflow
+```bash
+# Spec out a feature — your prompt becomes the task context
+cplus spec "plan how to add SSO integration for our repository"
+
+# Plan with the architect role
+cplus plan --roles architect "add rate limiting to API"
+
+# Implement something specific
+cplus implement "add pagination to /api/users endpoint"
+
+# Debug with an error log attached
+cplus debug logs/error.txt "users getting 500 on login since yesterday"
+
+# Review code with security focus
+cplus review --roles reviewer "focus on auth and input validation"
+```
+
+Your quoted text and files get composed into the prompt alongside the action and roles.
+
+### Structured workflows — Claude focuses on one thing at a time
+
+```bash
+# 1. Spec out a feature through guided discovery
+#    DISCOVERER → SPECIFIER → VALIDATOR → REFINER
+cplus spec "SSO integration with Google and GitHub OAuth"
+
+# 2. Develop it end-to-end with phased execution
+#    ARCHITECT → SETUP → IMPLEMENTER → VERIFIER → REVIEWER → CLEANUP
+#    Each phase has strict scope — can't write code during planning, can't skip tests
+cplus develop .cplus/specs/0001-sso-integration.md
+
+# 3. Or use develop-v2 with ECC (requires --with-ecc install)
+#    Same phases, but IMPLEMENTER delegates to /tdd, VERIFIER runs /verify, etc.
+cplus develop-v2 .cplus/specs/0001-sso-integration.md
+```
+
+### Compose files, text, and roles freely
+
+```bash
+# Attach a schema file + instructions + architect role — all composed into one prompt
+cplus implement schema.sql "add migration for new user fields" --roles architect
+
+# Attach multiple files
+cplus review src/auth.ts src/middleware.ts "check for token expiry edge cases"
+
+# Preview what gets sent to Claude (without actually sending)
+cplus develop --dry-run
+
+# Interactive action picker (fzf)
+cplus pick
+
+# List everything available
+cplus ls actions
+cplus ls roles
 ```
 
 ## Installation
