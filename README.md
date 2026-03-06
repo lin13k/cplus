@@ -2,39 +2,66 @@
 
 Prompt composition tool for [Claude CLI](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo/cli). Build complex prompts from reusable actions and roles.
 
+Optionally integrates with [Everything Claude Code (ECC)](https://github.com/affaan-m/everything-claude-code) for TDD, code review, security scanning, and verification workflows.
+
 ## Features
 
-- 🧩 **Composable prompts** - Build from reusable actions and roles
-- 🎯 **Project context** - Auto-inject project commands from `.cplus.yml`, `package.json`, or `Makefile`
-- ⚡ **Fuzzy matching** - Quick access without typing full names
-- 📎 **Flexible context** - Attach files and text as needed
-- 🔍 **Interactive selection** - fzf integration when you need it
+- **Composable prompts** - Build from reusable actions and roles
+- **Project context** - Auto-inject project commands from `.cplus.yml`, `package.json`, or `Makefile`
+- **Fuzzy matching** - Quick access without typing full names
+- **Flexible context** - Attach files and text as needed
+- **Interactive selection** - fzf integration when you need it
+- **ECC integration** - `develop-v2` action delegates to ECC commands while cplus controls scope
 
 ## Quick Start
 
 ```bash
 git clone https://github.com/lin13k/cplus.git
 cd cplus
+
+# cplus only
 ./install.sh
 
+# cplus + ECC (for develop-v2)
+./install.sh --with-ecc
+./install.sh --with-ecc --ecc-langs=typescript,python
+```
+
+```bash
 # Interactive mode (no roles by default)
 cplus
 
 # Direct usage
 cplus spec                               # Use spec action without roles
 cplus develop --roles architect          # Add roles when needed
-cplus develop tasks/task.md "focus on tests"
+cplus develop-v2 .cplus/specs/0001-feature.md  # ECC-integrated workflow
 ```
 
 ## Installation
 
 **Prerequisites**: zsh, [Claude CLI](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo/cli), fzf (`brew install fzf`)
 
+### cplus only
+
 ```bash
 ./install.sh
 ```
 
 Installs to `~/.config/cplus/` and creates `~/.local/bin/cplus` command.
+
+### cplus + ECC (recommended for develop-v2)
+
+```bash
+./install.sh --with-ecc
+```
+
+This additionally installs ECC's rules, commands, agents, skills, and hooks into `~/.claude/`. If you want language-specific rules:
+
+```bash
+./install.sh --with-ecc --ecc-langs=typescript,python,golang
+```
+
+ECC source is cloned to `~/projects/everything-claude-code/` (set `ECC_DIR` to override).
 
 ## Usage
 
@@ -65,7 +92,7 @@ cplus ls                                  # List available prompts
 
 ```
 prompts/
-├── actions/          # What to do (plan, implement, review, spec, develop, add, etc.)
+├── actions/          # What to do (plan, implement, review, spec, develop, develop-v2, add, etc.)
 └── roles/            # How to behave (architect, implementer, add/gatherer, etc.)
 ```
 
@@ -77,19 +104,31 @@ cplus develop --roles architect           # Add architect role when needed
 cplus review --roles reviewer,architect   # Multiple roles for different perspectives
 ```
 
-### Advanced Workflows
+### Workflows
 
 **`spec`** - Multi-phase specification development (DISCOVERER → SPECIFIER → VALIDATOR → REFINER):
 ```bash
 cplus spec
 ```
-Creates detailed specifications through concrete examples and structured discovery. The action defines all roles internally, so no `--roles` flag needed.
+Creates detailed specifications through concrete examples and structured discovery.
 
 **`develop`** - Complete development lifecycle (ARCHITECT → SETUP → IMPLEMENTER → VERIFIER → REVIEWER → CLEANUP):
 ```bash
 cplus develop .cplus/specs/0001-feature-name.md
 ```
-Orchestrates full implementation from specification to delivery. Roles are defined within the action workflow.
+Orchestrates full implementation from specification to delivery.
+
+**`develop-v2`** - ECC-integrated development lifecycle (requires ECC):
+```bash
+cplus develop-v2 .cplus/specs/0001-feature-name.md
+```
+Same phased workflow as `develop`, but delegates specialized work to ECC:
+- IMPLEMENTER delegates each checkpoint to `/tdd` (with inline content, not file references)
+- VERIFIER runs `/verify full`
+- REVIEWER runs `/code-review` + `/security-scan`
+- Strategic `/compact` at every phase transition
+
+cplus controls scope and state. ECC commands execute within that scope. See [develop-v2 plan](docs/develop-v2-plan.md) for the full design rationale.
 
 **`add`** - Guided creation of new actions or roles (GATHERER → GENERATOR → VALIDATOR):
 ```bash
@@ -103,8 +142,9 @@ Interactively collects requirements, generates a complete prompt file from scrat
 # 1. Create specification
 cplus spec
 
-# 2. Develop from spec
-cplus develop .cplus/specs/0001-feature-name.md
+# 2. Develop from spec (pick one)
+cplus develop .cplus/specs/0001-feature-name.md      # v1: self-contained
+cplus develop-v2 .cplus/specs/0001-feature-name.md   # v2: uses ECC commands
 
 # 3. Add a new action or role
 cplus add
@@ -255,3 +295,5 @@ MIT License - see [LICENSE](LICENSE)
 ## Credits
 
 Built for [Claude CLI](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo/cli) by Anthropic.
+
+ECC integration powered by [Everything Claude Code](https://github.com/affaan-m/everything-claude-code) by Affaan Mustafa.
