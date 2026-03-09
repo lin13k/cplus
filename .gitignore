@@ -22,3 +22,6 @@
 # User-specific test files
 test-*.md
 scratch/
+
+# Project workspace (specs, tasks, notes)
+.cplus/
