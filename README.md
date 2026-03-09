@@ -65,8 +65,8 @@ cplus ls                                  # List available prompts
 
 ```
 prompts/
-├── actions/          # What to do (plan, implement, review, spec, develop, etc.)
-└── roles/            # How to behave (architect, implementer, etc.)
+├── actions/          # What to do (plan, implement, review, spec, develop, add, etc.)
+└── roles/            # How to behave (architect, implementer, add/gatherer, etc.)
 ```
 
 Actions define the task. Roles are **opt-in** - use them when you need specific behavior:
@@ -91,6 +91,13 @@ cplus develop .cplus/specs/0001-feature-name.md
 ```
 Orchestrates full implementation from specification to delivery. Roles are defined within the action workflow.
 
+**`add`** - Guided creation of new actions or roles (GATHERER → GENERATOR → VALIDATOR):
+```bash
+cplus add                              # Full guided workflow
+cplus add --roles add/gatherer         # Run only the discovery phase
+```
+Interactively collects requirements, generates a complete prompt file from scratch following canonical schemas and Claude Code best practices, then validates before saving.
+
 **Full Workflow Example**:
 ```bash
 # 1. Create specification
@@ -98,6 +105,9 @@ cplus spec
 
 # 2. Develop from spec
 cplus develop .cplus/specs/0001-feature-name.md
+
+# 3. Add a new action or role
+cplus add
 ```
 
 ## Project Context
@@ -161,7 +171,15 @@ This gets piped to `claude`.
 
 ## Creating Custom Prompts
 
-Edit prompts directly:
+Use the `add` action to create new actions or roles interactively:
+
+```bash
+cplus add
+```
+
+This guides you through structured Q&A, generates a complete prompt following canonical schemas and Claude Code best practices, validates it, then saves it to the right location.
+
+Or edit prompts directly:
 
 ```bash
 cd ~/.config/cplus/prompts/
