@@ -256,6 +256,7 @@ EXAMPLES
 OPTIONS
   --roles <role1,role2,...>  Inject roles (comma-separated or repeated)
   --dry-run                  Preview composition without sending to claude
+  -p, --print                Non-interactive mode: pipe to claude -p and print output
   --help, -h                 Show this help message
 
 NOTE
@@ -315,6 +316,7 @@ main() {
   local -a roles_array
   local -a extras_array
   local dry_run=false
+  local print_mode=false
   local inject_roles=false  # Default: no role injection
 
   # Parse arguments
@@ -322,6 +324,10 @@ main() {
     case "$1" in
       --dry-run)
         dry_run=true
+        shift
+        ;;
+      -p|--print)
+        print_mode=true
         shift
         ;;
       --roles)
@@ -365,7 +371,7 @@ main() {
 
   # Handle run and pick operations
   if [[ "$operation" == "run" || "$operation" == "pick" ]]; then
-    handle_run_or_pick "$operation" "$prompt_selector" "$dry_run" "$inject_roles" "$roles_array[@]" -- "${extras_array[@]}"
+    handle_run_or_pick "$operation" "$prompt_selector" "$dry_run" "$print_mode" "$inject_roles" "$roles_array[@]" -- "${extras_array[@]}"
     exit 0
   fi
 
@@ -857,6 +863,8 @@ handle_run_or_pick() {
   shift
   local dry_run="$1"
   shift
+  local print_mode="$1"
+  shift
   local inject_roles="$1"
   shift
 
@@ -899,6 +907,8 @@ handle_run_or_pick() {
   # Compose and either output or pipe to claude
   if [[ "$dry_run" == "true" ]]; then
     compose_prompt "$base_prompt" "$resolved_roles" "${extras_array[@]}"
+  elif [[ "$print_mode" == "true" ]]; then
+    compose_prompt "$base_prompt" "$resolved_roles" "${extras_array[@]}" | claude -p
   else
     compose_prompt "$base_prompt" "$resolved_roles" "${extras_array[@]}" | claude
   fi
