@@ -297,7 +297,7 @@ _dv3_run_phase() {
 
   # Run cplus -p with role file + context files (streams output live)
   local exit_code
-  cplus -p "$role_file" "${context_files[@]}"
+  cplus -p --dangerously-skip-permissions "$role_file" "${context_files[@]}"
   exit_code=$?
 
   # Check for BLOCKED file written by the role
@@ -652,6 +652,7 @@ main() {
   local dry_run=false
   local print_mode=false
   local inject_roles=false  # Default: no role injection
+  local skip_permissions=false
 
   # Parse arguments
   while [[ $# -gt 0 ]]; do
@@ -662,6 +663,10 @@ main() {
         ;;
       -p|--print)
         print_mode=true
+        shift
+        ;;
+      --dangerously-skip-permissions)
+        skip_permissions=true
         shift
         ;;
       --roles)
@@ -705,7 +710,7 @@ main() {
 
   # Handle run and pick operations
   if [[ "$operation" == "run" || "$operation" == "pick" ]]; then
-    handle_run_or_pick "$operation" "$prompt_selector" "$dry_run" "$print_mode" "$inject_roles" "$roles_array[@]" -- "${extras_array[@]}"
+    handle_run_or_pick "$operation" "$prompt_selector" "$dry_run" "$print_mode" "$inject_roles" "$skip_permissions" "$roles_array[@]" -- "${extras_array[@]}"
     exit 0
   fi
 
@@ -1201,6 +1206,8 @@ handle_run_or_pick() {
   shift
   local inject_roles="$1"
   shift
+  local skip_permissions="$1"
+  shift
 
   # Collect roles (up to --)
   local -a roles_array
@@ -1242,7 +1249,11 @@ handle_run_or_pick() {
   if [[ "$dry_run" == "true" ]]; then
     compose_prompt "$base_prompt" "$resolved_roles" "${extras_array[@]}"
   elif [[ "$print_mode" == "true" ]]; then
-    compose_prompt "$base_prompt" "$resolved_roles" "${extras_array[@]}" | claude -p
+    if [[ "$skip_permissions" == "true" ]]; then
+      compose_prompt "$base_prompt" "$resolved_roles" "${extras_array[@]}" | claude -p --dangerously-skip-permissions
+    else
+      compose_prompt "$base_prompt" "$resolved_roles" "${extras_array[@]}" | claude -p
+    fi
   else
     compose_prompt "$base_prompt" "$resolved_roles" "${extras_array[@]}" | claude
   fi
