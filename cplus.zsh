@@ -368,6 +368,20 @@ _dv3_parse_checkpoints() {
   fi
 }
 
+# Warn if a phase commit already exists for this task
+# Args: phase task_id project_root
+_dv3_check_already_committed() {
+  local phase="$1"
+  local task_id="$2"
+  local project_root="$3"
+  local commit_msg="cplus(${phase}): ${task_id}"
+
+  if git -C "$project_root" log --oneline --grep="^${commit_msg}$" | grep -q .; then
+    echo "Warning: ${phase} phase already committed for ${task_id}." >&2
+    echo "  Use --from to skip already-done phases, or git reset to redo." >&2
+  fi
+}
+
 # Handle develop-v3 operation
 handle_develop_v3() {
   local spec_file=""
@@ -487,6 +501,7 @@ handle_develop_v3() {
 
     case "$_phase" in
       architect)
+        _dv3_check_already_committed "architect" "$task_id" "$project_root"
         _dv3_run_phase "architect" \
           "$roles_v3_dir/architect.md" \
           "$task_dir" \
@@ -495,6 +510,7 @@ handle_develop_v3() {
         ;;
 
       setup)
+        _dv3_check_already_committed "setup" "$task_id" "$project_root"
         _dv3_run_phase "setup" \
           "$roles_v3_dir/setup.md" \
           "$task_dir" \
@@ -540,6 +556,7 @@ handle_develop_v3() {
         ;;
 
       verify)
+        _dv3_check_already_committed "verify" "$task_id" "$project_root"
         _dv3_run_phase "verify" \
           "$roles_v3_dir/verify.md" \
           "$task_dir" \
@@ -548,6 +565,7 @@ handle_develop_v3() {
         ;;
 
       review)
+        _dv3_check_already_committed "review" "$task_id" "$project_root"
         _dv3_run_phase "review" \
           "$roles_v3_dir/review.md" \
           "$task_dir" \
@@ -556,6 +574,7 @@ handle_develop_v3() {
         ;;
 
       cleanup)
+        _dv3_check_already_committed "cleanup" "$task_id" "$project_root"
         _dv3_run_phase "cleanup" \
           "$roles_v3_dir/cleanup.md" \
           "$task_dir" \
