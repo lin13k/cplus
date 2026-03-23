@@ -319,15 +319,40 @@ _dv3_run_phase() {
   echo "[${phase}] done (${elapsed}s)"
 }
 
+# Read worktree path from state.md
+# Returns empty string if not found or marked as removed
+_dv3_read_worktree_path() {
+  local state_file="$1"
+  [[ -f "$state_file" ]] || { echo ""; return; }
+  local path
+  path=$(grep -m1 '^\- Worktree:' "$state_file" | sed 's/.*`\([^`]*\)`.*/\1/')
+  [[ "$path" == "removed" ]] && path=""
+  echo "$path"
+}
+
 # Commit all changes after a phase
-# Args: phase task_id project_root
+# For architect (no worktree): commits planning artifacts to project_root (main branch)
+# For phases with a live worktree: commits code changes from the worktree (task branch)
+# For all other phases: skips (state.md is ephemeral runtime state, not committed)
+# Args: phase task_id project_root [worktree_path]
 _dv3_git_commit() {
   local phase="$1"
   local task_id="$2"
   local project_root="$3"
+  local worktree_path="${4:-}"
+
+  local commit_dir
+  if [[ -n "$worktree_path" && -d "$worktree_path" ]]; then
+    commit_dir="$worktree_path"
+  elif [[ "$phase" == "architect" ]]; then
+    commit_dir="$project_root"
+  else
+    echo "[git] skipping commit for ${phase} (no active worktree)"
+    return
+  fi
 
   (
-    cd "$project_root" || exit 1
+    cd "$commit_dir" || exit 1
     git add -A
     if git diff --staged --quiet; then
       echo "[git] nothing to commit for ${phase}"
@@ -373,14 +398,22 @@ _dv3_parse_checkpoints() {
 }
 
 # Warn if a phase commit already exists for this task
-# Args: phase task_id project_root
+# Args: phase task_id project_root [worktree_path]
 _dv3_check_already_committed() {
   local phase="$1"
   local task_id="$2"
   local project_root="$3"
+  local worktree_path="${4:-}"
   local commit_msg="cplus(${phase}): ${task_id}"
 
-  if git -C "$project_root" log --oneline --grep="^${commit_msg}$" | grep -q .; then
+  local check_dir
+  if [[ -n "$worktree_path" && -d "$worktree_path" ]]; then
+    check_dir="$worktree_path"
+  else
+    check_dir="$project_root"
+  fi
+
+  if git -C "$check_dir" log --oneline --grep="^${commit_msg}$" | grep -q .; then
     echo "Warning: ${phase} phase already committed for ${task_id}." >&2
     echo "  Use --from to skip already-done phases, or git reset to redo." >&2
   fi
@@ -495,6 +528,12 @@ handle_develop_v3() {
     fi
   fi
 
+  # Worktree path — populated after setup, or pre-loaded when resuming past setup
+  local worktree_path=""
+  if [[ -n "$from_phase" && "$from_phase" != "architect" && "$from_phase" != "setup" ]]; then
+    worktree_path=$(_dv3_read_worktree_path "$task_dir/state.md")
+  fi
+
   # Run each phase
   local _phase_idx=0
   for _phase in "${phase_order[@]}"; do
@@ -519,7 +558,8 @@ handle_develop_v3() {
           "$roles_v3_dir/setup.md" \
           "$task_dir" \
           "$task_dir/plan.md" "$task_dir/state.md"
-        _dv3_git_commit "setup" "$task_id" "$project_root"
+        worktree_path=$(_dv3_read_worktree_path "$task_dir/state.md")
+        _dv3_git_commit "setup" "$task_id" "$project_root" "$worktree_path"
         ;;
 
       implement)
@@ -554,36 +594,36 @@ handle_develop_v3() {
             "$task_dir/state.md" "$tmpchk"
           rm -f "$tmpchk"
 
-          _dv3_git_commit "checkpoint-$cp_idx" "$task_id" "$project_root"
+          _dv3_git_commit "checkpoint-$cp_idx" "$task_id" "$project_root" "$worktree_path"
           cp_idx=$(( cp_idx + 1 ))
         done
         ;;
 
       verify)
-        _dv3_check_already_committed "verify" "$task_id" "$project_root"
+        _dv3_check_already_committed "verify" "$task_id" "$project_root" "$worktree_path"
         _dv3_run_phase "verify" \
           "$roles_v3_dir/verify.md" \
           "$task_dir" \
           "$task_dir/state.md" "$task_dir/plan.md"
-        _dv3_git_commit "verify" "$task_id" "$project_root"
+        _dv3_git_commit "verify" "$task_id" "$project_root" "$worktree_path"
         ;;
 
       review)
-        _dv3_check_already_committed "review" "$task_id" "$project_root"
+        _dv3_check_already_committed "review" "$task_id" "$project_root" "$worktree_path"
         _dv3_run_phase "review" \
           "$roles_v3_dir/review.md" \
           "$task_dir" \
           "$task_dir/report.md"
-        _dv3_git_commit "review" "$task_id" "$project_root"
+        _dv3_git_commit "review" "$task_id" "$project_root" "$worktree_path"
         ;;
 
       cleanup)
-        _dv3_check_already_committed "cleanup" "$task_id" "$project_root"
+        _dv3_check_already_committed "cleanup" "$task_id" "$project_root" "$worktree_path"
         _dv3_run_phase "cleanup" \
           "$roles_v3_dir/cleanup.md" \
           "$task_dir" \
           "$task_dir/state.md"
-        _dv3_git_commit "cleanup" "$task_id" "$project_root"
+        _dv3_git_commit "cleanup" "$task_id" "$project_root" "$worktree_path"
         ;;
     esac
 
