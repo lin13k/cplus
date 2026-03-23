@@ -266,6 +266,305 @@ For full specification, see cplus_contract.md
 EOF
 }
 
+# ============================================================================
+# develop-v3: Shell-orchestrated multi-session pipeline
+# ============================================================================
+
+# Run a single phase subprocess via cplus -p
+# Args: phase_name role_file task_dir [context_files...]
+_dv3_run_phase() {
+  local phase="$1"
+  local role_file="$2"
+  local task_dir="$3"
+  shift 3
+  local -a context_files=("$@")
+
+  local start_time=$SECONDS
+  echo ""
+  echo "[${phase}] starting..."
+
+  # Remove stale BLOCKED file from previous run
+  rm -f "$task_dir/BLOCKED"
+
+  # Check role file exists
+  if [[ ! -f "$role_file" ]]; then
+    echo "Error: role file not found: $role_file" >&2
+    exit 1
+  fi
+
+  # Run cplus -p with role file + context files (streams output live)
+  cplus -p "$role_file" "${context_files[@]}"
+  local exit_code=$?
+
+  # Check for BLOCKED file written by the role
+  if [[ -f "$task_dir/BLOCKED" ]]; then
+    local reason
+    reason=$(cat "$task_dir/BLOCKED")
+    echo ""
+    echo "[BLOCKED] $reason" >&2
+    exit 1
+  fi
+
+  if [[ $exit_code -ne 0 ]]; then
+    echo ""
+    echo "[${phase}] FAILED (exit code $exit_code)" >&2
+    exit 1
+  fi
+
+  local elapsed=$((SECONDS - start_time))
+  echo "[${phase}] done (${elapsed}s)"
+}
+
+# Commit all changes after a phase
+# Args: phase task_id project_root
+_dv3_git_commit() {
+  local phase="$1"
+  local task_id="$2"
+  local project_root="$3"
+
+  (
+    cd "$project_root" || exit 1
+    git add -A
+    if git diff --staged --quiet; then
+      echo "[git] nothing to commit for ${phase}"
+    else
+      git commit -m "cplus(${phase}): ${task_id}"
+    fi
+  )
+}
+
+# Parse checkpoint blocks from plan.md
+# Populates global _DV3_CHECKPOINTS array with one element per checkpoint block
+# Args: plan_file
+_dv3_parse_checkpoints() {
+  local plan_file="$1"
+  _DV3_CHECKPOINTS=()
+
+  local current_block=""
+  local in_checkpoint=false
+
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^"## Checkpoint "[0-9]+: ]]; then
+      if [[ "$in_checkpoint" == "true" && -n "$current_block" ]]; then
+        _DV3_CHECKPOINTS+=("$current_block")
+      fi
+      current_block="$line"$'\n'
+      in_checkpoint=true
+    elif [[ "$in_checkpoint" == "true" ]]; then
+      # Stop at next level-2 heading that is not a Checkpoint
+      if [[ "$line" =~ ^"## " && ! "$line" =~ ^"## Checkpoint " ]]; then
+        _DV3_CHECKPOINTS+=("$current_block")
+        current_block=""
+        in_checkpoint=false
+      else
+        current_block+="$line"$'\n'
+      fi
+    fi
+  done < "$plan_file"
+
+  # Flush last block
+  if [[ "$in_checkpoint" == "true" && -n "$current_block" ]]; then
+    _DV3_CHECKPOINTS+=("$current_block")
+  fi
+}
+
+# Handle develop-v3 operation
+handle_develop_v3() {
+  local spec_file=""
+  local from_phase=""
+  local from_checkpoint=0
+
+  # Parse arguments
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --from)
+        shift
+        if [[ $# -eq 0 ]]; then
+          echo "Error: --from requires a phase name" >&2
+          echo "Valid values: architect, setup, implement, checkpoint-N, verify, review, cleanup" >&2
+          exit 1
+        fi
+        from_phase="$1"
+        shift
+        ;;
+      --from=*)
+        from_phase="${1#--from=}"
+        shift
+        ;;
+      -*)
+        echo "Error: Unknown option $1" >&2
+        exit 1
+        ;;
+      *)
+        if [[ -z "$spec_file" ]]; then
+          spec_file="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  # Validate spec file
+  if [[ -z "$spec_file" ]]; then
+    echo "Error: spec file required" >&2
+    echo "Usage: cplus develop-v3 <spec-file> [--from <phase>]" >&2
+    exit 1
+  fi
+  if [[ ! -f "$spec_file" ]]; then
+    echo "Error: spec file not found: $spec_file" >&2
+    exit 1
+  fi
+
+  # Derive task_id from spec filename (basename without .md)
+  local task_id
+  task_id="${spec_file##*/}"
+  task_id="${task_id%.md}"
+
+  # Locate project root and task workspace
+  local project_root
+  project_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
+  local task_dir="$project_root/.cplus/tasks/$task_id"
+  mkdir -p "$task_dir"
+
+  # Role files directory
+  local roles_v3_dir="$PROMPTS_DIR/roles/develop-v3"
+
+  # Validate --from value
+  if [[ -n "$from_phase" ]]; then
+    case "$from_phase" in
+      architect|setup|implement|verify|review|cleanup)
+        ;;
+      checkpoint-*)
+        local cp_num="${from_phase#checkpoint-}"
+        if ! [[ "$cp_num" =~ ^[0-9]+$ ]]; then
+          echo "Error: invalid --from value: $from_phase" >&2
+          echo "Valid values: architect, setup, implement, checkpoint-N, verify, review, cleanup" >&2
+          exit 1
+        fi
+        from_checkpoint=$cp_num
+        from_phase="implement"
+        ;;
+      *)
+        echo "Error: invalid --from value: $from_phase" >&2
+        echo "Valid values: architect, setup, implement, checkpoint-N, verify, review, cleanup" >&2
+        exit 1
+        ;;
+    esac
+  fi
+
+  # Phase execution order
+  local -a phase_order=(architect setup implement verify review cleanup)
+
+  # Determine start index from --from phase
+  local start_idx=0
+  if [[ -n "$from_phase" ]]; then
+    local _i=0
+    for _p in "${phase_order[@]}"; do
+      if [[ "$_p" == "$from_phase" ]]; then
+        start_idx=$_i
+        break
+      fi
+      (( _i++ ))
+    done
+  fi
+
+  echo "develop-v3: $task_id"
+  [[ -n "$from_phase" ]] && echo "Resuming from: $from_phase${from_checkpoint:+ (checkpoint-$from_checkpoint)}"
+
+  # Run each phase
+  local _phase_idx=0
+  for _phase in "${phase_order[@]}"; do
+    if [[ $_phase_idx -lt $start_idx ]]; then
+      (( _phase_idx++ ))
+      continue
+    fi
+
+    case "$_phase" in
+      architect)
+        _dv3_run_phase "architect" \
+          "$roles_v3_dir/architect.md" \
+          "$task_dir" \
+          "$spec_file" "$task_dir"
+        _dv3_git_commit "architect" "$task_id" "$project_root"
+        ;;
+
+      setup)
+        _dv3_run_phase "setup" \
+          "$roles_v3_dir/setup.md" \
+          "$task_dir" \
+          "$task_dir/plan.md" "$task_dir/state.md"
+        _dv3_git_commit "setup" "$task_id" "$project_root"
+        ;;
+
+      implement)
+        local plan_file="$task_dir/plan.md"
+        if [[ ! -f "$plan_file" ]]; then
+          echo "Error: plan.md not found — did architect phase run?" >&2
+          exit 1
+        fi
+
+        _dv3_parse_checkpoints "$plan_file"
+        local total_checkpoints=${#_DV3_CHECKPOINTS[@]}
+
+        if [[ $total_checkpoints -eq 0 ]]; then
+          echo "Warning: no checkpoints found in plan.md — skipping implement phase"
+        fi
+
+        local cp_idx=1
+        for _cp_content in "${_DV3_CHECKPOINTS[@]}"; do
+          if [[ $cp_idx -lt $from_checkpoint ]]; then
+            echo "[checkpoint-$cp_idx] skipped (--from checkpoint-$from_checkpoint)"
+            (( cp_idx++ ))
+            continue
+          fi
+
+          local tmpchk
+          tmpchk=$(mktemp)
+          printf '%s' "$_cp_content" > "$tmpchk"
+
+          _dv3_run_phase "checkpoint-$cp_idx" \
+            "$roles_v3_dir/implement.md" \
+            "$task_dir" \
+            "$task_dir/state.md" "$tmpchk"
+          rm -f "$tmpchk"
+
+          _dv3_git_commit "checkpoint-$cp_idx" "$task_id" "$project_root"
+          (( cp_idx++ ))
+        done
+        ;;
+
+      verify)
+        _dv3_run_phase "verify" \
+          "$roles_v3_dir/verify.md" \
+          "$task_dir" \
+          "$task_dir/state.md" "$task_dir/plan.md"
+        _dv3_git_commit "verify" "$task_id" "$project_root"
+        ;;
+
+      review)
+        _dv3_run_phase "review" \
+          "$roles_v3_dir/review.md" \
+          "$task_dir" \
+          "$task_dir/report.md"
+        _dv3_git_commit "review" "$task_id" "$project_root"
+        ;;
+
+      cleanup)
+        _dv3_run_phase "cleanup" \
+          "$roles_v3_dir/cleanup.md" \
+          "$task_dir" \
+          "$task_dir/state.md"
+        _dv3_git_commit "cleanup" "$task_id" "$project_root"
+        ;;
+    esac
+
+    (( _phase_idx++ ))
+  done
+
+  echo ""
+  echo "develop-v3 complete: $task_id"
+}
+
 # Main entry point
 main() {
   local operation=""
@@ -276,7 +575,7 @@ main() {
   # Parse operation (first arg if it's a known operation)
   if [[ $# -gt 0 ]]; then
     case "$1" in
-      run|pick|ls|role|project|help|--help|-h)
+      run|pick|ls|role|project|develop-v3|help|--help|-h)
         operation="$1"
         shift
         ;;
@@ -309,6 +608,12 @@ main() {
   # Handle project operation
   if [[ "$operation" == "project" ]]; then
     handle_project "$@"
+    exit 0
+  fi
+
+  # Handle develop-v3 operation
+  if [[ "$operation" == "develop-v3" ]]; then
+    handle_develop_v3 "$@"
     exit 0
   fi
 
