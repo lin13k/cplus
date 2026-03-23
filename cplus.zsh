@@ -98,7 +98,7 @@ parse_makefile() {
 # Returns: project context as formatted text
 load_project_context() {
   local project_root
-  project_root=$(find_project_root)
+  project_root=$(find_project_root) || return 1
 
   if [[ -z "$project_root" ]]; then
     return 1
@@ -114,7 +114,7 @@ load_project_context() {
   # Try package.json
   elif [[ -f "$project_root/package.json" ]]; then
     local scripts
-    scripts=$(parse_package_json "$project_root/package.json")
+    scripts=$(parse_package_json "$project_root/package.json") || true
     if [[ -n "$scripts" ]]; then
       output="project:\n  name: $(basename "$project_root")\n\ncommands:\n"
       output+=$(echo "$scripts" | sed 's/^/  /')
@@ -123,7 +123,7 @@ load_project_context() {
   # Try Makefile
   elif [[ -f "$project_root/Makefile" ]]; then
     local targets
-    targets=$(parse_makefile "$project_root/Makefile")
+    targets=$(parse_makefile "$project_root/Makefile") || true
     if [[ -n "$targets" ]]; then
       output="project:\n  name: $(basename "$project_root")\n\ncommands:\n"
       output+=$(echo "$targets" | sed 's/^/  /')
@@ -143,7 +143,7 @@ load_project_context() {
 # Returns: formatted markdown section
 format_project_context() {
   local config
-  config=$(load_project_context)
+  config=$(load_project_context) || true
 
   if [[ -z "$config" ]]; then
     return 0
