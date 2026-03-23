@@ -209,5 +209,6 @@ echo "  cplus develop                      # Run develop action (v1)"
 if [ "$INSTALL_ECC" = true ]; then
     echo "  cplus develop-v2                   # Run develop action with ECC integration"
 fi
+echo "  cplus develop-v3 <spec>            # Automated multi-session pipeline"
 echo ""
 echo "Note: You may need to restart your shell or run: source ~/.zshrc"

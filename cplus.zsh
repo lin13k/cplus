@@ -239,6 +239,7 @@ OPERATIONS
   ls             List available prompts and roles
   role           Resolve roles to files and print them
   project        Manage project configuration (show, init, validate)
+  develop-v3     Automated multi-session pipeline (architect→setup→implement→verify→review→cleanup)
   help           Print this usage information
 
 EXAMPLES
@@ -252,6 +253,8 @@ EXAMPLES
   cplus role --roles arch,review           # Print resolved role files
   cplus project show                       # Show detected project context
   cplus project init                       # Create .cplus.yml template
+  cplus develop-v3 .cplus/specs/0001.md   # Run automated pipeline
+  cplus develop-v3 spec.md --from verify  # Resume from verify phase
 
 OPTIONS
   --roles <role1,role2,...>  Inject roles (comma-separated or repeated)
