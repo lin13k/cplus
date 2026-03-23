@@ -464,18 +464,24 @@ handle_develop_v3() {
         start_idx=$_i
         break
       fi
-      (( _i++ ))
+      _i=$(( _i + 1 ))
     done
   fi
 
   echo "develop-v3: $task_id"
-  [[ -n "$from_phase" ]] && echo "Resuming from: $from_phase${from_checkpoint:+ (checkpoint-$from_checkpoint)}"
+  if [[ -n "$from_phase" ]]; then
+    if [[ $from_checkpoint -gt 0 ]]; then
+      echo "Resuming from: checkpoint-$from_checkpoint"
+    else
+      echo "Resuming from: $from_phase"
+    fi
+  fi
 
   # Run each phase
   local _phase_idx=0
   for _phase in "${phase_order[@]}"; do
     if [[ $_phase_idx -lt $start_idx ]]; then
-      (( _phase_idx++ ))
+      _phase_idx=$(( _phase_idx + 1 ))
       continue
     fi
 
@@ -514,7 +520,7 @@ handle_develop_v3() {
         for _cp_content in "${_DV3_CHECKPOINTS[@]}"; do
           if [[ $cp_idx -lt $from_checkpoint ]]; then
             echo "[checkpoint-$cp_idx] skipped (--from checkpoint-$from_checkpoint)"
-            (( cp_idx++ ))
+            cp_idx=$(( cp_idx + 1 ))
             continue
           fi
 
@@ -529,7 +535,7 @@ handle_develop_v3() {
           rm -f "$tmpchk"
 
           _dv3_git_commit "checkpoint-$cp_idx" "$task_id" "$project_root"
-          (( cp_idx++ ))
+          cp_idx=$(( cp_idx + 1 ))
         done
         ;;
 
@@ -558,7 +564,7 @@ handle_develop_v3() {
         ;;
     esac
 
-    (( _phase_idx++ ))
+    _phase_idx=$(( _phase_idx + 1 ))
   done
 
   echo ""
