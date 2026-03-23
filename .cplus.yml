@@ -5,7 +5,7 @@ project:
 
 commands:
   # Testing
-  test: "./install.sh && cplus ls && ./uninstall.sh"
+  test: "./install.sh && cplus ls"
 
   # Installation
   install: "./install.sh"

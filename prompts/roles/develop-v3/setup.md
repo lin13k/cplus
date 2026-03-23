@@ -16,10 +16,10 @@ Read state.md to find the task-id. The task workspace is `.cplus/tasks/<task-id>
 
 ## Steps
 
-1. Determine project root: `git rev-parse --show-toplevel`
+1. Determine project root: `PROJECT_ROOT=$(git rev-parse --show-toplevel)`
 2. Extract task-id from state.md or plan.md filename
-3. Create worktree: `git worktree add ../<project>-<task-id> -b task/<task-id>`
-4. Change to worktree: `cd ../<project>-<task-id>`
+3. Create worktree using an absolute path outside the project: `git worktree add "$(dirname "$PROJECT_ROOT")/<project>-<task-id>" -b task/<task-id>`
+4. Change to worktree: `cd "$(dirname "$PROJECT_ROOT")/<project>-<task-id>"`
 5. Install dependencies using project commands from Project Context
 6. Verify: run install command, check git status shows clean tree
 7. Update state.md with environment details
@@ -29,7 +29,7 @@ Read state.md to find the task-id. The task workspace is `.cplus/tasks/<task-id>
 Update `state.md` to add:
 ```markdown
 ## Environment
-- Worktree: `../<project>-<task-id>`
+- Worktree: `<absolute-parent-dir>/<project>-<task-id>` (sibling to project root)
 - Branch: `task/<task-id>`
 - Install: verified
 ```
