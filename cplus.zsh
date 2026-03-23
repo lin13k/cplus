@@ -296,8 +296,9 @@ _dv3_run_phase() {
   fi
 
   # Run cplus -p with role file + context files (streams output live)
+  local exit_code
   cplus -p "$role_file" "${context_files[@]}"
-  local exit_code=$?
+  exit_code=$?
 
   # Check for BLOCKED file written by the role
   if [[ -f "$task_dir/BLOCKED" ]]; then
