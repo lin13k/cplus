@@ -45,10 +45,14 @@ echo ""
 mkdir -p "$CPLUS_HOME"
 mkdir -p "$BIN_DIR"
 
-# Copy script
-echo "Copying script..."
-cp "$SCRIPT_DIR/cplus.zsh" "$CPLUS_HOME/cplus.zsh"
-chmod +x "$CPLUS_HOME/cplus.zsh"
+# Install Python package
+echo "Installing Python package..."
+if [ -f "$PROJECT_ROOT/pyproject.toml" ]; then
+    pip install "$PROJECT_ROOT" 2>&1 | tail -3
+else
+    echo "Error: pyproject.toml not found in $PROJECT_ROOT" >&2
+    exit 1
+fi
 
 # Handle prompts directory
 if [ -d "$CPLUS_HOME/prompts" ]; then
@@ -71,19 +75,9 @@ else
     echo "Created: $PROJECT_PROMPTS_LINK -> $CPLUS_HOME/prompts"
 fi
 
-# Create wrapper script in bin directory
-echo "Creating wrapper script..."
-cat > "$CPLUS_BIN" << 'EOF'
-#!/usr/bin/env zsh
-# cplus wrapper - calls the actual script from ~/.config/cplus
-exec "$HOME/.config/cplus/cplus.zsh" "$@"
-EOF
-chmod +x "$CPLUS_BIN"
-
 echo ""
-echo "[cplus] Installed to: $CPLUS_HOME"
-echo "[cplus] Created command: $CPLUS_BIN"
-echo "[cplus] Created symlink: $PROJECT_PROMPTS_LINK"
+echo "[cplus] Installed Python package with 'cplus' entry point"
+echo "[cplus] Prompts at: $CPLUS_HOME/prompts"
 echo ""
 
 # --- ECC Installation ---
@@ -163,15 +157,28 @@ fi
 # --- Dependency checks ---
 echo "--- Checking dependencies ---"
 
-# Check if ~/.local/bin is in PATH
-if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
-    echo "  $BIN_DIR is not in your PATH"
-    echo "  Add this to your ~/.zshrc:"
-    echo ""
-    echo "    export PATH=\"\$HOME/.local/bin:\$PATH\""
-    echo ""
+# Check for python3
+if ! command -v python3 &> /dev/null; then
+    echo "  python3: not installed (required)"
+    echo "  Install with: brew install python"
 else
-    echo "  PATH: ok"
+    echo "  python3: ok ($(python3 --version 2>&1))"
+fi
+
+# Check for pip
+if ! command -v pip &> /dev/null && ! python3 -m pip --version &> /dev/null; then
+    echo "  pip: not installed (required)"
+else
+    echo "  pip: ok"
+fi
+
+# Check cplus entry point is in PATH
+if ! command -v cplus &> /dev/null; then
+    echo "  cplus: not found in PATH"
+    echo "  You may need to add pip's script directory to your PATH"
+    echo "  Try: pip show cplus | grep Location"
+else
+    echo "  cplus: ok"
 fi
 
 # Check for fzf

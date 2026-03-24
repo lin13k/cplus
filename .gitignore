@@ -23,5 +23,14 @@
 test-*.md
 scratch/
 
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+src/cplus.egg-info/
+dist/
+build/
+
 # Project workspace (specs, tasks, notes)
 .cplus/
