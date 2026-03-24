@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install script for cplus - creates standalone installation with project symlink
+# Install script for cplus - installs via pipx (preferred) or pip
 # Optionally installs ECC (Everything Claude Code) for develop-v2 integration
 
 set -e
@@ -9,28 +9,30 @@ PROJECT_ROOT="$SCRIPT_DIR"
 
 # Installation locations
 CPLUS_HOME="${CPLUS_HOME:-$HOME/.config/cplus}"
-BIN_DIR="${HOME}/.local/bin"
-CPLUS_BIN="$BIN_DIR/cplus"
 PROJECT_PROMPTS_LINK="$PROJECT_ROOT/prompts-installed"
 CLAUDE_DIR="$HOME/.claude"
 
 # Parse flags
 INSTALL_ECC=false
 ECC_LANGS=""
+USE_PIP=false
 for arg in "$@"; do
     case "$arg" in
         --with-ecc) INSTALL_ECC=true ;;
         --ecc-langs=*) ECC_LANGS="${arg#--ecc-langs=}" ;;
+        --pip) USE_PIP=true ;;
         --help|-h)
-            echo "Usage: ./install.sh [--with-ecc] [--ecc-langs=typescript,python,golang]"
+            echo "Usage: ./install.sh [--pip] [--with-ecc] [--ecc-langs=typescript,python,golang]"
             echo ""
             echo "Options:"
+            echo "  --pip                   Use pip instead of pipx"
             echo "  --with-ecc              Install ECC (Everything Claude Code) for develop-v2"
             echo "  --ecc-langs=lang1,lang2 Language-specific ECC rules (default: none)"
             echo ""
             echo "Examples:"
-            echo "  ./install.sh                                    # cplus only"
-            echo "  ./install.sh --with-ecc                         # cplus + ECC (common rules only)"
+            echo "  ./install.sh                                    # cplus only (via pipx)"
+            echo "  ./install.sh --pip                              # cplus only (via pip)"
+            echo "  ./install.sh --with-ecc                         # cplus + ECC"
             echo "  ./install.sh --with-ecc --ecc-langs=typescript  # cplus + ECC with TypeScript rules"
             exit 0
             ;;
@@ -38,26 +40,49 @@ for arg in "$@"; do
 done
 
 echo "Installing cplus..."
-echo "Installation directory: $CPLUS_HOME"
 echo ""
 
-# Create directories
-mkdir -p "$CPLUS_HOME"
-mkdir -p "$BIN_DIR"
+# --- Install Python package ---
 
-# Install Python package
-echo "Installing Python package..."
-if [ -f "$PROJECT_ROOT/pyproject.toml" ]; then
-    pip install "$PROJECT_ROOT" 2>&1 | tail -3
-else
+if [ ! -f "$PROJECT_ROOT/pyproject.toml" ]; then
     echo "Error: pyproject.toml not found in $PROJECT_ROOT" >&2
     exit 1
 fi
 
-# Handle prompts directory
+if [ "$USE_PIP" = true ]; then
+    echo "Installing via pip..."
+    if ! command -v pip &> /dev/null && ! python3 -m pip --version &> /dev/null; then
+        echo "Error: pip not found. Install with: brew install python" >&2
+        exit 1
+    fi
+    pip install "$PROJECT_ROOT" 2>&1 | tail -3
+else
+    echo "Installing via pipx..."
+    if ! command -v pipx &> /dev/null; then
+        echo "pipx not found. Installing pipx first..."
+        if command -v brew &> /dev/null; then
+            brew install pipx
+            pipx ensurepath
+        elif command -v pip &> /dev/null || python3 -m pip --version &> /dev/null 2>&1; then
+            python3 -m pip install --user pipx
+            python3 -m pipx ensurepath
+        else
+            echo "Error: Cannot install pipx. Install manually: brew install pipx" >&2
+            exit 1
+        fi
+    fi
+    # --force to handle upgrades/reinstalls cleanly
+    pipx install "$PROJECT_ROOT" --force 2>&1 | tail -5
+fi
+
+# --- Copy prompts ---
+
+mkdir -p "$CPLUS_HOME"
+
 if [ -d "$CPLUS_HOME/prompts" ]; then
     echo "Prompts already exist at $CPLUS_HOME/prompts"
-    echo "   Keeping existing prompts (not overwriting)"
+    echo "   Syncing from repo (preserving custom prompts)..."
+    cp -rn "$PROJECT_ROOT/prompts/"* "$CPLUS_HOME/prompts/" 2>/dev/null || true
 else
     echo "Copying prompts..."
     cp -r "$PROJECT_ROOT/prompts" "$CPLUS_HOME/"
@@ -76,7 +101,7 @@ else
 fi
 
 echo ""
-echo "[cplus] Installed Python package with 'cplus' entry point"
+echo "[cplus] Installed successfully"
 echo "[cplus] Prompts at: $CPLUS_HOME/prompts"
 echo ""
 
@@ -157,28 +182,12 @@ fi
 # --- Dependency checks ---
 echo "--- Checking dependencies ---"
 
-# Check for python3
-if ! command -v python3 &> /dev/null; then
-    echo "  python3: not installed (required)"
-    echo "  Install with: brew install python"
-else
-    echo "  python3: ok ($(python3 --version 2>&1))"
-fi
-
-# Check for pip
-if ! command -v pip &> /dev/null && ! python3 -m pip --version &> /dev/null; then
-    echo "  pip: not installed (required)"
-else
-    echo "  pip: ok"
-fi
-
-# Check cplus entry point is in PATH
+# Check cplus is available
 if ! command -v cplus &> /dev/null; then
     echo "  cplus: not found in PATH"
-    echo "  You may need to add pip's script directory to your PATH"
-    echo "  Try: pip show cplus | grep Location"
+    echo "  You may need to restart your shell or run: source ~/.zshrc"
 else
-    echo "  cplus: ok"
+    echo "  cplus: ok ($(cplus --help 2>&1 | head -1))"
 fi
 
 # Check for fzf
@@ -218,4 +227,3 @@ if [ "$INSTALL_ECC" = true ]; then
 fi
 echo "  cplus develop-v3 <spec>            # Automated multi-session pipeline"
 echo ""
-echo "Note: You may need to restart your shell or run: source ~/.zshrc"

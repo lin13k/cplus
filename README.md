@@ -85,17 +85,55 @@ cplus ls roles
 
 ## Installation
 
-**Prerequisites**: zsh, [Claude CLI](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo/cli), fzf (`brew install fzf`)
+**Prerequisites**: Python 3.10+, [Claude CLI](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo/cli), fzf (`brew install fzf`)
 
-### cplus only
+### Recommended: pipx
+
+[pipx](https://pipx.pypa.io/) installs cplus in an isolated environment with its own dependencies, keeping your system Python clean.
 
 ```bash
+# Install pipx if you don't have it
+brew install pipx
+pipx ensurepath
+
+# Install cplus
+pipx install git+https://github.com/lin13k/cplus.git
+
+# Copy prompts to config directory
+mkdir -p ~/.config/cplus
+cp -r $(pipx runpip cplus show -f cplus 2>/dev/null | head -1 | xargs dirname)/cplus/../../prompts ~/.config/cplus/ 2>/dev/null \
+  || echo "Clone the repo and copy prompts manually: cp -r prompts ~/.config/cplus/"
+```
+
+Or from a local clone:
+
+```bash
+git clone https://github.com/lin13k/cplus.git
+cd cplus
+pipx install .
+cp -r prompts ~/.config/cplus/
+```
+
+### Alternative: pip
+
+```bash
+git clone https://github.com/lin13k/cplus.git
+cd cplus
+pip install .
+cp -r prompts ~/.config/cplus/
+```
+
+### Alternative: install.sh (handles everything)
+
+```bash
+git clone https://github.com/lin13k/cplus.git
+cd cplus
 ./install.sh
 ```
 
-Installs to `~/.config/cplus/` and creates `~/.local/bin/cplus` command.
+This runs `pip install .` and copies prompts to `~/.config/cplus/` in one step.
 
-### cplus + ECC (recommended for develop-v2)
+### With ECC (for develop-v2)
 
 ```bash
 ./install.sh --with-ecc
@@ -108,6 +146,18 @@ This additionally installs ECC's rules, commands, agents, skills, and hooks into
 ```
 
 ECC source is cloned to `~/projects/everything-claude-code/` (set `ECC_DIR` to override).
+
+### Upgrading
+
+```bash
+# pipx
+pipx upgrade cplus
+# or reinstall from latest
+pipx install --force git+https://github.com/lin13k/cplus.git
+
+# pip
+pip install --upgrade git+https://github.com/lin13k/cplus.git
+```
 
 ## Usage
 
@@ -317,17 +367,16 @@ cplus develop --roles architect  # With architect role
 
 ## Configuration
 
-Default install location: `~/.config/cplus/`
+Prompts location: `~/.config/cplus/prompts/`
 
-Override with:
+The `cplus` command looks for prompts in two places (in order):
+1. Relative to the Python package (development/repo mode)
+2. `~/.config/cplus/prompts/` (installed mode)
+
+Override prompts location with `install.sh`:
 ```bash
 export CPLUS_HOME="$HOME/.local/share/cplus"
 ./install.sh
-```
-
-Ensure `~/.local/bin` is in your PATH:
-```bash
-export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ## Contributing
