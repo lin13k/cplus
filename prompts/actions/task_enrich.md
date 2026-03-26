@@ -36,7 +36,7 @@ Enrich a task's title and description to address gaps identified by a readiness 
 }
 ```
 
-Output raw JSON only. No markdown wrapping, no explanation text.
+If an output file path is specified in the "Output Requirement" section below, write the raw JSON object to that file. Otherwise, output raw JSON only. No markdown wrapping, no explanation text.
 
 ## Workflow
 

@@ -20,7 +20,7 @@ Do not ask clarifying questions. Make best-effort assumptions and document them.
 
 ## Output — `GoalInterpretation`
 
-Print the following JSON structure to the conversation. Do not save to a file.
+If an output file path is specified in the "Output Requirement" section below, write the raw JSON object to that file. Otherwise, print it to the conversation.
 
 ```json
 {

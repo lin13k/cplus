@@ -42,7 +42,7 @@ A task is `ready` only when all three dimensions pass. If any dimension fails, s
 
 ## Output
 
-Respond with **only** a valid JSON object matching this schema. No prose, no markdown fences, no commentary outside the JSON.
+If an output file path is specified in the "Output Requirement" section below, write the raw JSON object to that file. Otherwise, respond with **only** a valid JSON object below. No prose, no markdown fences, no commentary outside the JSON.
 
 ```json
 {

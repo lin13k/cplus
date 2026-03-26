@@ -44,6 +44,7 @@ def _parse_args(argv: list[str]) -> dict:
         "dry_run": False,
         "print_mode": False,
         "skip_permissions": False,
+        "output_file": None,
         "extras": [],
         "sub_args": [],
     }
@@ -82,6 +83,12 @@ def _parse_args(argv: list[str]) -> dict:
         elif arg in ("-p", "--print"):
             result["print_mode"] = True
             args.pop(0)
+        elif arg == "--output-file":
+            args.pop(0)
+            if not args:
+                print("Error: --output-file requires a path", file=sys.stderr)
+                sys.exit(1)
+            result["output_file"] = args.pop(0)
         elif arg == "--dangerously-skip-permissions":
             result["skip_permissions"] = True
             args.pop(0)
@@ -142,6 +149,14 @@ def _handle_run_or_pick(parsed: dict) -> None:
 
     project_context = _get_project_context()
     prompt_text = compose_prompt(base_file, role_files, project_context, parsed["extras"])
+
+    if parsed["output_file"]:
+        prompt_text += (
+            "\n\n### Output Requirement\n"
+            f"Write your JSON output to the file: {parsed['output_file']}\n"
+            "Do NOT print the JSON to the conversation. "
+            "Write ONLY the raw JSON object to the file — no markdown fences, no prose, no explanation.\n"
+        )
 
     if parsed["dry_run"]:
         print(prompt_text)
