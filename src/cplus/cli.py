@@ -41,6 +41,7 @@ def _parse_args(argv: list[str]) -> dict:
         "operation": "run",
         "selector": None,
         "roles": None,
+        "model": None,
         "dry_run": False,
         "print_mode": False,
         "skip_permissions": False,
@@ -89,6 +90,15 @@ def _parse_args(argv: list[str]) -> dict:
                 print("Error: --output-file requires a path", file=sys.stderr)
                 sys.exit(1)
             result["output_file"] = args.pop(0)
+        elif arg == "--model":
+            args.pop(0)
+            if not args:
+                print("Error: --model requires a value", file=sys.stderr)
+                sys.exit(1)
+            result["model"] = args.pop(0)
+        elif arg.startswith("--model="):
+            result["model"] = arg[len("--model="):]
+            args.pop(0)
         elif arg == "--dangerously-skip-permissions":
             result["skip_permissions"] = True
             args.pop(0)
@@ -168,10 +178,15 @@ def _handle_run_or_pick(parsed: dict) -> None:
         cmd = ["claude", "-p"]
         if parsed["skip_permissions"]:
             cmd.append("--dangerously-skip-permissions")
+        if parsed["model"]:
+            cmd.extend(["--model", parsed["model"]])
         result = subprocess.run(cmd, input=prompt_text, text=True)
         sys.exit(result.returncode)
     else:
-        result = subprocess.run(["claude"], input=prompt_text, text=True)
+        cmd = ["claude"]
+        if parsed["model"]:
+            cmd.extend(["--model", parsed["model"]])
+        result = subprocess.run(cmd, input=prompt_text, text=True)
         sys.exit(result.returncode)
 
 
@@ -385,6 +400,7 @@ EXAMPLES
 
 OPTIONS
   --roles <role1,role2,...>  Inject roles (comma-separated or repeated)
+  --model <model>            Claude model to use (e.g. opus, sonnet, haiku)
   --dry-run                  Preview composition without sending to claude
   -p, --print                Non-interactive mode: pipe to claude -p and print output
   --help, -h                 Show this help message

@@ -13,6 +13,8 @@ def run_phase(
     role_file: Path,
     task_dir: Path,
     context_files: list[Path],
+    *,
+    model: str | None = None,
 ) -> None:
     """Run a single pipeline phase via `cplus -p --dangerously-skip-permissions`.
 
@@ -21,6 +23,7 @@ def run_phase(
         role_file: Path to the role .md file
         task_dir: Task workspace directory
         context_files: Additional context files to pass
+        model: Optional model override to pass via --model
     """
     print(f"\n[{name}] starting...")
 
@@ -33,7 +36,10 @@ def run_phase(
         sys.exit(1)
 
     # Build cplus command: cplus -p --dangerously-skip-permissions <role> <context_files>
-    cmd = ["cplus", "-p", "--dangerously-skip-permissions", str(role_file)]
+    cmd = ["cplus", "-p", "--dangerously-skip-permissions"]
+    if model:
+        cmd.extend(["--model", model])
+    cmd.append(str(role_file))
     for cf in context_files:
         cmd.append(str(cf))
 

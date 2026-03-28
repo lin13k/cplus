@@ -27,6 +27,7 @@ class PipelineConfig:
     task_dir: Path
     project_root: Path
     roles_dir: Path
+    model: str | None = None
 
 
 def run_pipeline(config: PipelineConfig) -> None:
@@ -66,6 +67,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 config.roles_dir / "architect.md",
                 config.task_dir,
                 [config.spec_file, config.task_dir],
+                model=config.model,
             )
             commit_phase("architect", config.task_id, config.project_root, None)
 
@@ -76,6 +78,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 config.roles_dir / "setup.md",
                 config.task_dir,
                 [config.task_dir / "plan.md", config.task_dir / "state.md"],
+                model=config.model,
             )
             state_file = config.task_dir / "state.md"
             worktree_path = read_worktree_path(state_file)
@@ -111,6 +114,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                         config.roles_dir / "implement.md",
                         config.task_dir,
                         [config.task_dir / "state.md", tmp_path],
+                        model=config.model,
                     )
                 finally:
                     tmp_path.unlink(missing_ok=True)
@@ -124,6 +128,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 config.roles_dir / "verify.md",
                 config.task_dir,
                 [config.task_dir / "state.md", config.task_dir / "plan.md"],
+                model=config.model,
             )
             commit_phase("verify", config.task_id, config.project_root, worktree)
 
@@ -134,6 +139,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 config.roles_dir / "review.md",
                 config.task_dir,
                 [config.task_dir / "report.md"],
+                model=config.model,
             )
             commit_phase("review", config.task_id, config.project_root, worktree)
 
@@ -144,6 +150,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 config.roles_dir / "cleanup.md",
                 config.task_dir,
                 [config.task_dir / "state.md"],
+                model=config.model,
             )
             commit_phase("cleanup", config.task_id, config.project_root, worktree)
 
@@ -156,6 +163,7 @@ def run_develop_v3_cli(args: list[str], prompts_dir: Path) -> None:
     spec_file: str | None = None
     from_phase: str | None = None
     from_checkpoint = 0
+    model: str | None = None
 
     argv = list(args)
     while argv:
@@ -172,6 +180,15 @@ def run_develop_v3_cli(args: list[str], prompts_dir: Path) -> None:
             from_phase = argv.pop(0)
         elif arg.startswith("--from="):
             from_phase = arg[len("--from="):]
+            argv.pop(0)
+        elif arg == "--model":
+            argv.pop(0)
+            if not argv:
+                print("Error: --model requires a value", file=sys.stderr)
+                sys.exit(1)
+            model = argv.pop(0)
+        elif arg.startswith("--model="):
+            model = arg[len("--model="):]
             argv.pop(0)
         elif arg.startswith("-"):
             print(f"Error: Unknown option {arg}", file=sys.stderr)
@@ -227,6 +244,7 @@ def run_develop_v3_cli(args: list[str], prompts_dir: Path) -> None:
         task_dir=task_dir,
         project_root=project_root,
         roles_dir=roles_dir,
+        model=model,
     )
 
     run_pipeline(config)
