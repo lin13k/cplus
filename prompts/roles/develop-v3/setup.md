@@ -19,16 +19,16 @@ Read state.md to find the task-id. The task workspace is `.cplus/tasks/<task-id>
 1. Determine project root: `PROJECT_ROOT=$(git rev-parse --show-toplevel)`
 2. Extract task-id from state.md or plan.md filename
 3. Look up the install command from `.cplus.yml` in the project root (under `commands.install`)
-4. Run the setup script:
+4. Run the setup command:
    ```bash
-   "$PROJECT_ROOT/scripts/pipeline/setup-worktree.sh" <task-id> --install-cmd "<install-command>"
+   cplus setup-worktree <task-id> --install-cmd "<install-command>"
    ```
    If no install command is found in `.cplus.yml`, omit the `--install-cmd` flag.
-5. Verify the script succeeded (exit code 0) and state.md was updated with the Environment section
+5. Verify the command succeeded (exit code 0) and state.md was updated with the Environment section
 
 ## Output Contract
 
-The `setup-worktree.sh` script handles updating `state.md` with:
+The `setup-worktree` command handles updating `state.md` with:
 ```markdown
 ## Environment
 - Worktree: `<absolute-parent-dir>/<project>-<task-id>` (sibling to project root)
@@ -42,11 +42,11 @@ Verify this section exists in state.md after the script runs.
 
 Write `<task-dir>/BLOCKED: <reason>` and exit non-zero if:
 - plan.md is missing or unreadable
-- The setup script fails (non-zero exit code)
+- The setup command fails (non-zero exit code)
 
 ## Constraints
 
 - Do NOT implement any code changes
 - Do NOT run the full test suite (that's VERIFIER's job)
 - Do NOT proceed if setup fails — write BLOCKED instead
-- Use the `setup-worktree.sh` script — do NOT run git worktree commands manually
+- Use the `cplus setup-worktree` command — do NOT run git worktree commands manually

@@ -29,7 +29,10 @@ def _find_prompts_dir() -> Path:
 
 PROMPTS_DIR = _find_prompts_dir()
 
-KNOWN_OPERATIONS = {"run", "pick", "ls", "role", "project", "develop-v3", "help"}
+KNOWN_OPERATIONS = {
+    "run", "pick", "ls", "role", "project", "develop-v3",
+    "setup-worktree", "cleanup-worktree", "help", "version",
+}
 
 
 # --- Arg parsing ---
@@ -61,8 +64,8 @@ def _parse_args(argv: list[str]) -> dict:
         result["operation"] = "help"
         return result
 
-    # For ls, project, develop-v3: rest is sub_args
-    if result["operation"] in ("ls", "project", "develop-v3"):
+    # For ls, project, develop-v3, setup-worktree, cleanup-worktree: rest is sub_args
+    if result["operation"] in ("ls", "project", "develop-v3", "setup-worktree", "cleanup-worktree"):
         result["sub_args"] = args
         return result
 
@@ -368,6 +371,57 @@ conventions:
         sys.exit(1)
 
 
+def _handle_setup_worktree(sub_args: list[str]) -> None:
+    """Handle: cplus setup-worktree <task-id> [--install-cmd <cmd>]"""
+    from cplus.pipeline.git import setup_worktree
+
+    task_id: str | None = None
+    install_cmd: str | None = None
+    args = list(sub_args)
+    while args:
+        if args[0] == "--install-cmd":
+            args.pop(0)
+            if not args:
+                print("Error: --install-cmd requires a value", file=sys.stderr)
+                sys.exit(1)
+            install_cmd = args.pop(0)
+        elif args[0].startswith("-"):
+            print(f"Error: unknown option {args[0]}", file=sys.stderr)
+            print("Usage: cplus setup-worktree <task-id> [--install-cmd <cmd>]", file=sys.stderr)
+            sys.exit(1)
+        else:
+            task_id = args.pop(0)
+
+    if not task_id:
+        print("Error: task-id required", file=sys.stderr)
+        print("Usage: cplus setup-worktree <task-id> [--install-cmd <cmd>]", file=sys.stderr)
+        sys.exit(1)
+
+    setup_worktree(task_id, install_cmd)
+
+
+def _handle_cleanup_worktree(sub_args: list[str]) -> None:
+    """Handle: cplus cleanup-worktree <task-id>"""
+    from cplus.pipeline.git import cleanup_worktree
+
+    if not sub_args or sub_args[0].startswith("-"):
+        print("Error: task-id required", file=sys.stderr)
+        print("Usage: cplus cleanup-worktree <task-id>", file=sys.stderr)
+        sys.exit(1)
+
+    cleanup_worktree(sub_args[0])
+
+
+def _handle_version() -> None:
+    """Print cplus version."""
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+        v = version("cplus")
+    except PackageNotFoundError:
+        v = "dev"
+    print(f"cplus {v}")
+
+
 def _handle_help() -> None:
     print("""\
 cplus - Prompt composition tool for Claude CLI
@@ -418,7 +472,9 @@ def app_entry() -> None:
     parsed = _parse_args(sys.argv[1:])
     op = parsed["operation"]
 
-    if op == "help":
+    if op == "version":
+        _handle_version()
+    elif op == "help":
         _handle_help()
     elif op == "ls":
         _handle_ls(parsed["sub_args"])
@@ -429,6 +485,10 @@ def app_entry() -> None:
     elif op == "develop-v3":
         from cplus.pipeline.orchestrator import run_develop_v3_cli
         run_develop_v3_cli(parsed["sub_args"], PROMPTS_DIR)
+    elif op == "setup-worktree":
+        _handle_setup_worktree(parsed["sub_args"])
+    elif op == "cleanup-worktree":
+        _handle_cleanup_worktree(parsed["sub_args"])
     elif op in ("run", "pick"):
         _handle_run_or_pick(parsed)
     else:
