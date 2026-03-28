@@ -29,7 +29,7 @@ def _find_prompts_dir() -> Path:
 
 PROMPTS_DIR = _find_prompts_dir()
 
-KNOWN_OPERATIONS = {"run", "pick", "ls", "role", "project", "develop-v3", "help"}
+KNOWN_OPERATIONS = {"run", "pick", "ls", "role", "project", "develop-v3", "help", "version"}
 
 
 # --- Arg parsing ---
@@ -368,6 +368,16 @@ conventions:
         sys.exit(1)
 
 
+def _handle_version() -> None:
+    """Print cplus version."""
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+        v = version("cplus")
+    except PackageNotFoundError:
+        v = "dev"
+    print(f"cplus {v}")
+
+
 def _handle_help() -> None:
     print("""\
 cplus - Prompt composition tool for Claude CLI
@@ -418,7 +428,9 @@ def app_entry() -> None:
     parsed = _parse_args(sys.argv[1:])
     op = parsed["operation"]
 
-    if op == "help":
+    if op == "version":
+        _handle_version()
+    elif op == "help":
         _handle_help()
     elif op == "ls":
         _handle_ls(parsed["sub_args"])
