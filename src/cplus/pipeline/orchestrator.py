@@ -115,6 +115,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                         config.task_dir,
                         [config.task_dir / "state.md", tmp_path],
                         model=config.model,
+                        cwd=worktree,
                     )
                 finally:
                     tmp_path.unlink(missing_ok=True)
@@ -129,6 +130,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 config.task_dir,
                 [config.task_dir / "state.md", config.task_dir / "plan.md"],
                 model=config.model,
+                cwd=worktree,
             )
             commit_phase("verify", config.task_id, config.project_root, worktree)
 
@@ -140,6 +142,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 config.task_dir,
                 [config.task_dir / "report.md"],
                 model=config.model,
+                cwd=worktree,
             )
             commit_phase("review", config.task_id, config.project_root, worktree)
 
@@ -151,6 +154,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 config.task_dir,
                 [config.task_dir / "state.md"],
                 model=config.model,
+                cwd=config.project_root,
             )
             commit_phase("cleanup", config.task_id, config.project_root, worktree)
 

@@ -15,6 +15,7 @@ def run_phase(
     context_files: list[Path],
     *,
     model: str | None = None,
+    cwd: Path | None = None,
 ) -> None:
     """Run a single pipeline phase via `cplus -p --dangerously-skip-permissions`.
 
@@ -24,6 +25,7 @@ def run_phase(
         task_dir: Task workspace directory
         context_files: Additional context files to pass
         model: Optional model override to pass via --model
+        cwd: Working directory for the subprocess (e.g., worktree path)
     """
     print(f"\n[{name}] starting...")
 
@@ -43,8 +45,11 @@ def run_phase(
     for cf in context_files:
         cmd.append(str(cf))
 
+    if cwd:
+        print(f"[{name}] cwd: {cwd}")
+
     start = time.time()
-    result = subprocess.run(cmd)
+    result = subprocess.run(cmd, cwd=cwd)
     elapsed = int(time.time() - start)
 
     # Check for BLOCKED file
