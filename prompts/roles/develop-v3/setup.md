@@ -18,15 +18,17 @@ Read state.md to find the task-id. The task workspace is `.cplus/tasks/<task-id>
 
 1. Determine project root: `PROJECT_ROOT=$(git rev-parse --show-toplevel)`
 2. Extract task-id from state.md or plan.md filename
-3. Create worktree using an absolute path outside the project: `git worktree add "$(dirname "$PROJECT_ROOT")/<project>-<task-id>" -b task/<task-id>`
-4. Change to worktree: `cd "$(dirname "$PROJECT_ROOT")/<project>-<task-id>"`
-5. Install dependencies using project commands from Project Context
-6. Verify: run install command, check git status shows clean tree
-7. Update state.md with environment details
+3. Look up the install command from `.cplus.yml` in the project root (under `commands.install`)
+4. Run the setup script:
+   ```bash
+   "$PROJECT_ROOT/scripts/pipeline/setup-worktree.sh" <task-id> --install-cmd "<install-command>"
+   ```
+   If no install command is found in `.cplus.yml`, omit the `--install-cmd` flag.
+5. Verify the script succeeded (exit code 0) and state.md was updated with the Environment section
 
 ## Output Contract
 
-Update `state.md` to add:
+The `setup-worktree.sh` script handles updating `state.md` with:
 ```markdown
 ## Environment
 - Worktree: `<absolute-parent-dir>/<project>-<task-id>` (sibling to project root)
@@ -34,16 +36,17 @@ Update `state.md` to add:
 - Install: verified
 ```
 
+Verify this section exists in state.md after the script runs.
+
 ## BLOCKED Condition
 
 Write `<task-dir>/BLOCKED: <reason>` and exit non-zero if:
 - plan.md is missing or unreadable
-- git worktree creation fails (e.g., branch already exists)
-- dependency installation fails
+- The setup script fails (non-zero exit code)
 
 ## Constraints
 
 - Do NOT implement any code changes
 - Do NOT run the full test suite (that's VERIFIER's job)
 - Do NOT proceed if setup fails — write BLOCKED instead
-- Verify the worktree is on the correct branch before exiting
+- Use the `setup-worktree.sh` script — do NOT run git worktree commands manually

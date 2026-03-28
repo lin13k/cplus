@@ -13,15 +13,17 @@ The Additional Instructions section contains:
 
 ## Steps
 
-1. Read state.md to find the worktree path and branch name
-2. Return to project root: `cd $(git rev-parse --show-toplevel)`
-3. Remove the worktree: `git worktree remove <worktree-path> --force`
-4. Prune stale references: `git worktree prune`
-5. Update state.md to mark cleanup complete
+1. Read state.md to find the task-id
+2. Determine project root: `PROJECT_ROOT=$(git rev-parse --show-toplevel)`
+3. Run the cleanup script:
+   ```bash
+   "$PROJECT_ROOT/scripts/pipeline/cleanup-worktree.sh" <task-id>
+   ```
+4. Verify the script succeeded (exit code 0) and state.md was updated
 
 ## Output Contract
 
-Update `state.md`:
+The `cleanup-worktree.sh` script handles updating `state.md` with:
 ```markdown
 **Phase**: CLEANUP complete
 **Status**: Done
@@ -31,15 +33,17 @@ Update `state.md`:
 - Branch: task/<task-id> (kept for reference)
 ```
 
+Verify this section exists in state.md after the script runs.
+
 ## BLOCKED Condition
 
 Write `<task-dir>/BLOCKED: <reason>` if:
-- Worktree has uncommitted changes that would be lost (list them instead)
+- The cleanup script fails (e.g., worktree has uncommitted changes)
 
 ## Constraints
 
 - Do NOT delete the task branch (`task/<task-id>`) — keep it for reference
 - Do NOT remove `.cplus/tasks/<task-id>/` — keep task documentation
 - Do NOT make any code changes
-- If worktree is already removed, that is fine — just update state.md and exit cleanly
-- If worktree path is not in state.md, skip worktree removal and note it in state.md
+- Use the `cleanup-worktree.sh` script — do NOT run git worktree commands manually
+- If worktree path is not in state.md, skip cleanup and note it in state.md
