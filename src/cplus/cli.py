@@ -412,6 +412,7 @@ def _handle_cleanup_worktree(sub_args: list[str]) -> None:
     cleanup_worktree(sub_args[0])
 
 
+
 def _handle_version() -> None:
     """Print cplus version."""
     try:
