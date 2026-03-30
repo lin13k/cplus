@@ -17,6 +17,10 @@ from cplus.pipeline.state import read_worktree_path
 
 PHASE_ORDER = ["architect", "setup", "implement", "verify", "review", "cleanup"]
 
+# Phases that require the most capable model for best results.
+# Uses Claude CLI aliases (e.g. "opus") which auto-resolve to the latest version.
+HEAVY_PHASES = {"architect", "review"}
+
 
 @dataclass
 class PipelineConfig:
@@ -28,6 +32,15 @@ class PipelineConfig:
     project_root: Path
     roles_dir: Path
     model: str | None = None
+
+
+def _model_for_phase(phase: str, user_model: str | None) -> str | None:
+    """Return the model for a phase: user override wins, else 'opus' for heavy phases."""
+    if user_model:
+        return user_model
+    if phase in HEAVY_PHASES:
+        return "opus"
+    return None
 
 
 def run_pipeline(config: PipelineConfig) -> None:
@@ -67,7 +80,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 config.roles_dir / "architect.md",
                 config.task_dir,
                 [config.spec_file, config.task_dir],
-                model=config.model,
+                model=_model_for_phase("architect", config.model),
             )
             commit_phase("architect", config.task_id, config.project_root, None)
 
@@ -78,7 +91,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 config.roles_dir / "setup.md",
                 config.task_dir,
                 [config.task_dir / "plan.md", config.task_dir / "state.md"],
-                model=config.model,
+                model=_model_for_phase("setup", config.model),
             )
             state_file = config.task_dir / "state.md"
             worktree_path = read_worktree_path(state_file)
@@ -114,7 +127,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                         config.roles_dir / "implement.md",
                         config.task_dir,
                         [config.task_dir / "state.md", tmp_path],
-                        model=config.model,
+                        model=_model_for_phase("implement", config.model),
                         cwd=worktree,
                     )
                 finally:
@@ -129,7 +142,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 config.roles_dir / "verify.md",
                 config.task_dir,
                 [config.task_dir / "state.md", config.task_dir / "plan.md"],
-                model=config.model,
+                model=_model_for_phase("verify", config.model),
                 cwd=worktree,
             )
             commit_phase("verify", config.task_id, config.project_root, worktree)
@@ -141,7 +154,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 config.roles_dir / "review.md",
                 config.task_dir,
                 [config.task_dir / "report.md"],
-                model=config.model,
+                model=_model_for_phase("review", config.model),
                 cwd=worktree,
             )
             commit_phase("review", config.task_id, config.project_root, worktree)
@@ -153,7 +166,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 config.roles_dir / "cleanup.md",
                 config.task_dir,
                 [config.task_dir / "state.md"],
-                model=config.model,
+                model=_model_for_phase("cleanup", config.model),
                 cwd=config.project_root,
             )
             commit_phase("cleanup", config.task_id, config.project_root, worktree)
