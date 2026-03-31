@@ -415,18 +415,22 @@ def _handle_cleanup_worktree(sub_args: list[str]) -> None:
 
 
 def _handle_generate_context(sub_args: list[str]) -> None:
-    """Handle: cplus generate-context <module-path> [--dry-run]"""
+    """Handle: cplus generate-context <module-path> [--dry-run] [-p|--print]"""
     module_path: str | None = None
     dry_run = False
+    print_mode = False
     args = list(sub_args)
 
     while args:
         if args[0] == "--dry-run":
             dry_run = True
             args.pop(0)
+        elif args[0] in ("-p", "--print"):
+            print_mode = True
+            args.pop(0)
         elif args[0] in ("--help", "-h"):
             print("""\
-Usage: cplus generate-context <module-path> [--dry-run]
+Usage: cplus generate-context <module-path> [--dry-run] [-p|--print]
 
 Generate context documentation (AGENT.md + context/*.md) for a module.
 
@@ -435,13 +439,15 @@ Arguments:
 
 Options:
   --dry-run        Stop after ANALYZER phase (scope proposal only)
+  -p, --print      Non-interactive mode: pipe to claude -p and print output
   --help, -h       Show this help message
 
 Workflow: ANALYZER -> GENERATOR -> VALIDATOR
 
 Examples:
   cplus generate-context src/auth
-  cplus generate-context src/auth --dry-run""")
+  cplus generate-context src/auth --dry-run
+  cplus generate-context src/auth -p""")
             return
         elif args[0].startswith("-"):
             print(f"Error: Unknown option {args[0]}", file=sys.stderr)
@@ -482,6 +488,13 @@ Examples:
     composed += f"\n**Module path**: `{module_path}`\n"
     if dry_run:
         composed += "**Mode**: dry-run (stop after ANALYZER phase)\n"
+    if print_mode:
+        composed += (
+            "**Mode**: non-interactive (no user checkpoints)\n"
+            "- Auto-approve the ANALYZER proposed scope without waiting for user confirmation\n"
+            "- Proceed through all phases (ANALYZER → GENERATOR → VALIDATOR) automatically\n"
+            "- If VALIDATOR finds issues, apply one round of rework automatically, then finalize\n"
+        )
 
     _check_claude()
 
@@ -489,7 +502,8 @@ Examples:
     if dry_run:
         print("Mode: dry-run (ANALYZER only)")
 
-    result = subprocess.run(["claude"], input=composed, text=True)
+    cmd = ["claude", "-p"] if print_mode else ["claude"]
+    result = subprocess.run(cmd, input=composed, text=True)
     sys.exit(result.returncode)
 
 
