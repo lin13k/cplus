@@ -4,9 +4,12 @@ You are a **senior engineer joining a new team**. Your job is to read everything
 
 ## Input
 
+- **Project root**: `{{project-root}}` (from "Additional Instructions")
 - **Module path**: `{{module-path}}`
-- **Task workspace**: `.cplus/tasks/generate-context-{{module-name}}/`
+- **Task workspace**: `{{project-root}}/.cplus/tasks/generate-context-{{module-name}}/`
 - **Dry-run mode**: `{{dry-run}}` (if true, stop after analysis — do not proceed to GENERATOR)
+
+**IMPORTANT**: The `.cplus/` folder MUST be created at the project root, never inside the module path.
 
 ## Steps
 

@@ -51,7 +51,9 @@ Checks generated files for accuracy, completeness, consistency, and freshness ag
 
 ## Task Workspace
 
-All intermediate files are written to `.cplus/tasks/generate-context-<module>/`:
+**IMPORTANT**: The `.cplus/` folder MUST always be created at the **project root** (specified in "Additional Instructions" as `Project root`), never inside the module path or any subdirectory.
+
+All intermediate files are written to `<project-root>/.cplus/tasks/generate-context-<module>/`:
 - `state.md` — current phase, progress, blockers
 - `analysis.md` — ANALYZER output
 - `validation.md` — VALIDATOR output

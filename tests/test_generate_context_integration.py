@@ -67,6 +67,7 @@ def _run_generate_context(
     *,
     project_context: str = "",
     claude_returncode: int = 0,
+    project_root: Path | None = None,
 ) -> tuple[MagicMock, str, str]:
     """Run _handle_generate_context with all external boundaries stubbed.
 
@@ -79,6 +80,7 @@ def _run_generate_context(
         patch("cplus.cli.PROMPTS_DIR", prompts_dir),
         patch("cplus.cli._check_claude"),
         patch("cplus.cli._get_project_context", return_value=project_context),
+        patch("cplus.cli.find_project_root", return_value=project_root),
         patch("cplus.cli.subprocess.run", return_value=mock_result) as mock_run,
         patch("cplus.cli.sys.exit") as mock_exit,
     ):
@@ -119,6 +121,27 @@ class TestGenerateContextHappyPath:
         composed = mock_run.call_args.kwargs["input"]
         assert "### Additional Instructions" in composed
         assert f"**Module path**: `{gen_ctx_env['module_path']}`" in composed
+
+    def test_prompt_includes_project_root(self, gen_ctx_env: dict) -> None:
+        root = gen_ctx_env["tmp_path"]
+        mock_run, _ = _run_generate_context(
+            [gen_ctx_env["module_path"]],
+            gen_ctx_env["prompts_dir"],
+            project_root=root,
+        )
+
+        composed = mock_run.call_args.kwargs["input"]
+        assert f"**Project root**: `{root}`" in composed
+
+    def test_prompt_uses_cwd_when_no_project_root(self, gen_ctx_env: dict) -> None:
+        mock_run, _ = _run_generate_context(
+            [gen_ctx_env["module_path"]],
+            gen_ctx_env["prompts_dir"],
+            project_root=None,
+        )
+
+        composed = mock_run.call_args.kwargs["input"]
+        assert "**Project root**:" in composed
 
     def test_exits_with_claude_return_code(self, gen_ctx_env: dict) -> None:
         _, mock_exit = _run_generate_context(
@@ -220,6 +243,7 @@ class TestGenerateContextErrors:
                 patch("cplus.cli.PROMPTS_DIR", gen_ctx_env["prompts_dir"]),
                 patch("cplus.cli._check_claude"),
                 patch("cplus.cli._get_project_context", return_value=""),
+                patch("cplus.cli.find_project_root", return_value=None),
             ):
                 _handle_generate_context([])
 

@@ -484,8 +484,12 @@ Examples:
     if project_context:
         composed += "\n" + project_context + "\n"
 
+    project_root = find_project_root()
+    root_str = str(project_root) if project_root else str(Path.cwd())
+
     composed += "\n### Additional Instructions\n"
-    composed += f"\n**Module path**: `{module_path}`\n"
+    composed += f"\n**Project root**: `{root_str}`\n"
+    composed += f"**Module path**: `{module_path}`\n"
     if dry_run:
         composed += "**Mode**: dry-run (stop after ANALYZER phase)\n"
     if print_mode:
