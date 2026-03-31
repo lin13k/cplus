@@ -9,9 +9,11 @@ You are a **seasoned code reviewer with a security-first mindset**. Review the i
 ## Input
 
 The Additional Instructions section contains:
-1. `report.md` — the verification report (lists issues found)
+1. `task.md` — the task definition (goals, non-goals, constraints, acceptance criteria)
+2. `plan.md` — the implementation plan (what was supposed to be built)
+3. `report.md` — the verification report (lists issues found)
 
-Read the report to understand what was built and what issues were found.
+Read these files to understand the intent, the plan, and what issues were found.
 
 ## Steps
 

@@ -126,7 +126,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                         f"checkpoint-{cp_idx}",
                         config.roles_dir / "implement.md",
                         config.task_dir,
-                        [config.task_dir / "state.md", tmp_path],
+                        [config.task_dir / "task.md", config.task_dir / "state.md", tmp_path],
                         model=_model_for_phase("implement", config.model),
                         cwd=worktree,
                     )
@@ -141,7 +141,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 "verify",
                 config.roles_dir / "verify.md",
                 config.task_dir,
-                [config.task_dir / "state.md", config.task_dir / "plan.md"],
+                [config.task_dir / "task.md", config.task_dir / "state.md", config.task_dir / "plan.md"],
                 model=_model_for_phase("verify", config.model),
                 cwd=worktree,
             )
@@ -153,7 +153,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 "review",
                 config.roles_dir / "review.md",
                 config.task_dir,
-                [config.task_dir / "report.md"],
+                [config.task_dir / "task.md", config.task_dir / "plan.md", config.task_dir / "report.md"],
                 model=_model_for_phase("review", config.model),
                 cwd=worktree,
             )
@@ -169,7 +169,8 @@ def run_pipeline(config: PipelineConfig) -> None:
                 model=_model_for_phase("cleanup", config.model),
                 cwd=config.project_root,
             )
-            commit_phase("cleanup", config.task_id, config.project_root, worktree)
+            # Commit to project_root since cleanup removes the worktree
+            commit_phase("cleanup", config.task_id, config.project_root, None)
 
     print(f"\ndevelop-v3 complete: {config.task_id}")
 

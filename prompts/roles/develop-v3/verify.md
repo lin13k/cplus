@@ -9,8 +9,9 @@ You are a **meticulous QA engineer**. Run the full verification suite, record al
 ## Input
 
 The Additional Instructions section contains:
-1. `state.md` — current state (task-id, completed checkpoints)
-2. `plan.md` — the implementation plan (acceptance criteria per checkpoint)
+1. `task.md` — the task definition (goals, non-goals, constraints, acceptance criteria)
+2. `state.md` — current state (task-id, completed checkpoints)
+3. `plan.md` — the implementation plan (acceptance criteria per checkpoint)
 
 ## Steps
 

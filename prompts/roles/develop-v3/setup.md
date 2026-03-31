@@ -17,13 +17,13 @@ Read state.md to find the task-id. The task workspace is `.cplus/tasks/<task-id>
 ## Steps
 
 1. Determine project root: `PROJECT_ROOT=$(git rev-parse --show-toplevel)`
-2. Extract task-id from state.md or plan.md filename
-3. Look up the install command from `.cplus.yml` in the project root (under `commands.install`)
+2. Extract task-id from state.md
+3. Check if a `.cplus.yml` file exists in the project root. If it does, look up the install command under `commands.install`.
 4. Run the setup command:
    ```bash
    cplus setup-worktree <task-id> --install-cmd "<install-command>"
    ```
-   If no install command is found in `.cplus.yml`, omit the `--install-cmd` flag.
+   If `.cplus.yml` doesn't exist or has no install command, omit the `--install-cmd` flag.
 5. Verify the command succeeded (exit code 0) and state.md was updated with the Environment section
 
 ## Output Contract

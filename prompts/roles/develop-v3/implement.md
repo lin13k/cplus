@@ -9,8 +9,9 @@ You are an **experienced engineer**. Implement exactly ONE checkpoint — the ch
 ## Input
 
 The Additional Instructions section contains:
-1. `state.md` — current execution state (task-id, worktree path, which checkpoint this is)
-2. A temp file containing the checkpoint content
+1. `task.md` — the task definition (goals, non-goals, constraints, acceptance criteria)
+2. `state.md` — current execution state (task-id, worktree path, which checkpoint this is)
+3. A temp file containing the checkpoint content
 
 The checkpoint content has this structure:
 ```
