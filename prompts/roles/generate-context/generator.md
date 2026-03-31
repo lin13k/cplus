@@ -4,11 +4,14 @@ You are a **technical writer** who turns analysis into clear, scannable referenc
 
 ## Input
 
+- **Project root**: `{{project-root}}` (from "Additional Instructions")
 - **Module path**: `{{module-path}}`
 - **Module name**: `{{module-name}}`
-- **Task workspace**: `.cplus/tasks/generate-context-{{module-name}}/`
-- **Analysis file**: `.cplus/tasks/generate-context-{{module-name}}/analysis.md`
+- **Task workspace**: `{{project-root}}/.cplus/tasks/generate-context-{{module-name}}/`
+- **Analysis file**: `{{project-root}}/.cplus/tasks/generate-context-{{module-name}}/analysis.md`
 - **Approved scope**: read from `analysis.md` → "Proposed Scope" (only checked items)
+
+**IMPORTANT**: The `.cplus/` folder MUST be at the project root, never inside the module path.
 
 ## Steps
 
@@ -22,12 +25,23 @@ Read `.cplus.yml` (if present) to determine the feature map path (`generate-cont
 
 Create `{{module-path}}/AGENT.md` — the entry point document. Keep it concise (guideline: 80-150 lines, but complex modules may need more).
 
+**Placeholder convention**: Some sections are workflow-specific or require human judgment. Use `<!-- FILL: ... -->` HTML comments for sections where the generator cannot auto-fill content from code analysis alone. These placeholders guide engineers on what to add later. Do NOT invent content for placeholder sections — leave the HTML comments intact.
+
 **Template**:
 
 ```markdown
 # <Module Name> Domain
 
 > One-sentence description of what this module handles.
+
+## How to Use This Context
+1. Read THIS file first (architecture + operations)
+2. For entity relationships → context/data-model.md
+3. For step-by-step flow detail → context/flows.md
+4. For what you can/can't import → context/integration-points.md
+5. For "why is it done this way?" → context/decisions.md
+
+> Only list context files that were actually generated. Omit this section entirely if no context/ files exist.
 
 ## Key Concepts
 - **Term1**: definition
@@ -41,14 +55,29 @@ Create `{{module-path}}/AGENT.md` — the entry point document. Keep it concise 
 - Rule 2: [concise statement]
 
 ## Common Operations
-| Operation | Entry Point | Notes |
-|-----------|-------------|-------|
-| Create X  | `services/x.service.ts` | Requires Y |
-| Update X  | `services/x.service.ts` | Triggers event |
+| Operation | Entry Point | Input | Output | Notes |
+|-----------|-------------|-------|--------|-------|
+| Create X  | `services/x.service.ts` | `CreateXInput` | `{ x: X }` | Requires Y |
+| Update X  | `services/x.service.ts` | `UpdateXInput` | `{ x: X }` | Triggers event |
+
+> Include input/output type names from the API schema (GraphQL types, REST DTOs, etc.) so agents don't need to look them up.
 
 ## Gotchas
 - [Non-obvious behavior that catches people]
 - [Common mistakes when modifying this module]
+
+> Extract gotchas from code comments, error-prone patterns, and non-obvious conventions found during analysis. Examples: fire-and-forget patterns that should NOT be awaited, orientation/naming conventions that are easy to confuse, operations that are exceptions to the module's general pattern.
+
+## Module Boundaries
+<!-- FILL: List modules/files that should NOT be modified when working in this module. -->
+<!-- Example: "When modifying this module, do NOT modify:" -->
+<!-- "- other-module/services/ — call their public API instead" -->
+<!-- "- common/util/shared-infra — if it doesn't do what you need, ask" -->
+
+## Testing
+<!-- FILL: Where tests live, how to run them, key fixtures or mocking patterns. -->
+<!-- Example: "Tests: orchestrators/__tests__/, run with `npm test -- --testPathPattern=swapTrip`" -->
+<!-- "Mocking: use DynamoDB local for ledger tests, mock external services (Stripe, Kafka)" -->
 
 ## Deeper Reference
 See `context/` for detailed documentation:
@@ -230,7 +259,11 @@ Next: VALIDATOR
 Before marking GENERATOR as complete, verify:
 
 - [ ] `AGENT.md` is concise and scannable (80-150 lines guideline)
+- [ ] "How to Use This Context" only lists `context/` files that actually exist; omitted if no context/ files
 - [ ] "Deeper Reference" section only lists `context/` files that actually exist
+- [ ] "Common Operations" table includes Input and Output columns from API schema
+- [ ] "Gotchas" section populated with non-obvious patterns found in code; not left empty
+- [ ] "Module Boundaries" and "Testing" sections have `<!-- FILL: ... -->` placeholders (do NOT invent content)
 - [ ] All generated `context/` files follow their templates exactly
 - [ ] No invented or assumed information — everything traces back to `analysis.md`
 - [ ] Only scope-approved files were generated
