@@ -534,7 +534,7 @@ OPERATIONS
   ls             List available prompts and roles
   role           Resolve roles to files and print them
   project        Manage project configuration (show, init, validate)
-  develop-v3     Automated multi-session pipeline (architect->setup->implement->verify->review->cleanup)
+  develop-v3     Automated multi-session pipeline (setup->architect->implement->verify->review->cleanup)
   generate-context  Generate module context docs (AGENT.md + context/*.md)
   help           Print this usage information
 
@@ -551,6 +551,7 @@ EXAMPLES
   cplus project init                       # Create .cplus.yml template
   cplus develop-v3 .cplus/specs/0001.md   # Run automated pipeline
   cplus develop-v3 spec.md --from verify  # Resume from verify phase
+  cplus develop-v3 spec.md --merge        # Auto-merge task branch on completion
   cplus generate-context src/auth         # Generate context for auth module
   cplus generate-context src/auth --dry-run  # Analyze only, don't generate
 

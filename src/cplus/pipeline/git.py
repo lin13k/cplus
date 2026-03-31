@@ -162,6 +162,39 @@ def _remove_environment_section(text: str) -> str:
     return re.sub(r"\n## Environment\n.*?(?=\n## |\Z)", "", text, flags=re.DOTALL)
 
 
+def merge_task_branch(branch: str, project_root: Path) -> None:
+    """Merge a task branch into the current branch.
+
+    Exits with code 1 and writes BLOCKED if merge conflicts occur.
+    """
+    print(f"[git] merging {branch} into current branch")
+    result = subprocess.run(
+        ["git", "merge", branch, "-m", f"Merge {branch}"],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        # Abort the failed merge to leave a clean state
+        subprocess.run(
+            ["git", "merge", "--abort"],
+            cwd=project_root,
+            capture_output=True,
+        )
+        print(f"Error: merge conflict merging {branch}", file=sys.stderr)
+        print(result.stdout, file=sys.stderr)
+        print(result.stderr, file=sys.stderr)
+        sys.exit(1)
+    print(f"[git] merged: {branch}")
+
+
+def rewrite_environment_section(
+    state_file: Path, worktree_path: str, branch: str,
+) -> None:
+    """Re-append the Environment section to state.md (e.g. after architect overwrites it)."""
+    _append_environment_to_state(state_file, worktree_path, branch, "verified")
+
+
 def commit_phase(phase: str, task_id: str, project_root: Path, worktree: Path | None) -> None:
     """Commit all changes after a phase.
 

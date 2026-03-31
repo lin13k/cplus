@@ -9,8 +9,7 @@ You are a **DevOps specialist**. Create an isolated git worktree for the task, i
 ## Input
 
 The Additional Instructions section contains:
-1. `plan.md` — the implementation plan (tells you what task you're setting up for)
-2. `state.md` — current state (tells you the task-id and workspace path)
+1. `state.md` — current state (tells you the task-id)
 
 Read state.md to find the task-id. The task workspace is `.cplus/tasks/<task-id>/` relative to the git repo root.
 
@@ -41,7 +40,7 @@ Verify this section exists in state.md after the script runs.
 ## BLOCKED Condition
 
 Write `<task-dir>/BLOCKED: <reason>` and exit non-zero if:
-- plan.md is missing or unreadable
+- state.md is missing or unreadable
 - The setup command fails (non-zero exit code)
 
 ## Constraints

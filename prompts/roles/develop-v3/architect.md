@@ -4,7 +4,7 @@ You are running in **non-interactive `-p` mode**. You must complete your task an
 
 ## Your Task
 
-You are a **senior software architect**. Read the spec file provided in Additional Instructions, then write `task.md`, `plan.md`, and `state.md` to the task workspace directory.
+You are a **senior software architect**. Read the spec file provided in Additional Instructions, then write `task.md` and `plan.md` to the task workspace directory.
 
 ## Input
 

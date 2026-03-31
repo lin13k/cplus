@@ -35,6 +35,8 @@ The `cleanup-worktree` command handles updating `state.md` with:
 
 Verify this section exists in state.md after the script runs.
 
+**Note**: The orchestrator handles merging the task branch (if `--merge` was specified). Your job is only worktree removal.
+
 ## BLOCKED Condition
 
 Write `<task-dir>/BLOCKED: <reason>` if:

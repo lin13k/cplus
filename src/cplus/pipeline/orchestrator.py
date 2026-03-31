@@ -10,12 +10,17 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cplus.pipeline.checkpoints import parse_checkpoints
-from cplus.pipeline.git import check_already_committed, commit_phase
+from cplus.pipeline.git import (
+    check_already_committed,
+    commit_phase,
+    merge_task_branch,
+    rewrite_environment_section,
+)
 from cplus.pipeline.phase import run_phase
 from cplus.pipeline.state import read_worktree_path
 
 
-PHASE_ORDER = ["architect", "setup", "implement", "verify", "review", "cleanup"]
+PHASE_ORDER = ["setup", "architect", "implement", "verify", "review", "cleanup"]
 
 # Phases that require the most capable model for best results.
 # Uses Claude CLI aliases (e.g. "opus") which auto-resolve to the latest version.
@@ -32,6 +37,7 @@ class PipelineConfig:
     project_root: Path
     roles_dir: Path
     model: str | None = None
+    merge: bool = False
 
 
 def _model_for_phase(phase: str, user_model: str | None) -> str | None:
@@ -41,6 +47,13 @@ def _model_for_phase(phase: str, user_model: str | None) -> str | None:
     if phase in HEAVY_PHASES:
         return "opus"
     return None
+
+
+def _ensure_initial_state(task_dir: Path, task_id: str) -> None:
+    """Create a minimal state.md if it doesn't exist yet (needed before setup)."""
+    state_file = task_dir / "state.md"
+    if not state_file.is_file():
+        state_file.write_text(f"# State: {task_id}\n")
 
 
 def run_pipeline(config: PipelineConfig) -> None:
@@ -63,7 +76,7 @@ def run_pipeline(config: PipelineConfig) -> None:
 
     # Pre-load worktree path when resuming past setup
     worktree_path: str | None = None
-    if config.from_phase and config.from_phase not in ("architect", "setup"):
+    if config.from_phase and config.from_phase != "setup":
         state_file = config.task_dir / "state.md"
         worktree_path = read_worktree_path(state_file)
 
@@ -73,8 +86,20 @@ def run_pipeline(config: PipelineConfig) -> None:
 
         worktree = Path(worktree_path) if worktree_path else None
 
-        if phase == "architect":
-            check_already_committed("architect", config.task_id, config.project_root)
+        if phase == "setup":
+            _ensure_initial_state(config.task_dir, config.task_id)
+            run_phase(
+                "setup",
+                config.roles_dir / "setup.md",
+                config.task_dir,
+                [config.task_dir / "state.md"],
+                model=_model_for_phase("setup", config.model),
+            )
+            state_file = config.task_dir / "state.md"
+            worktree_path = read_worktree_path(state_file)
+            worktree = Path(worktree_path) if worktree_path else None
+
+        elif phase == "architect":
             run_phase(
                 "architect",
                 config.roles_dir / "architect.md",
@@ -82,21 +107,11 @@ def run_pipeline(config: PipelineConfig) -> None:
                 [config.spec_file, config.task_dir],
                 model=_model_for_phase("architect", config.model),
             )
-            commit_phase("architect", config.task_id, config.project_root, None)
-
-        elif phase == "setup":
-            check_already_committed("setup", config.task_id, config.project_root)
-            run_phase(
-                "setup",
-                config.roles_dir / "setup.md",
-                config.task_dir,
-                [config.task_dir / "plan.md", config.task_dir / "state.md"],
-                model=_model_for_phase("setup", config.model),
-            )
-            state_file = config.task_dir / "state.md"
-            worktree_path = read_worktree_path(state_file)
-            worktree = Path(worktree_path) if worktree_path else None
-            commit_phase("setup", config.task_id, config.project_root, worktree)
+            # Architect may overwrite state.md — re-append Environment section
+            if worktree_path:
+                state_file = config.task_dir / "state.md"
+                branch = f"task/{config.task_id}"
+                rewrite_environment_section(state_file, worktree_path, branch)
 
         elif phase == "implement":
             plan_file = config.task_dir / "plan.md"
@@ -160,7 +175,6 @@ def run_pipeline(config: PipelineConfig) -> None:
             commit_phase("review", config.task_id, config.project_root, worktree)
 
         elif phase == "cleanup":
-            check_already_committed("cleanup", config.task_id, config.project_root, worktree)
             run_phase(
                 "cleanup",
                 config.roles_dir / "cleanup.md",
@@ -169,10 +183,18 @@ def run_pipeline(config: PipelineConfig) -> None:
                 model=_model_for_phase("cleanup", config.model),
                 cwd=config.project_root,
             )
-            # Commit to project_root since cleanup removes the worktree
-            commit_phase("cleanup", config.task_id, config.project_root, None)
+            if config.merge:
+                branch = f"task/{config.task_id}"
+                merge_task_branch(branch, config.project_root)
 
-    print(f"\ndevelop-v3 complete: {config.task_id}")
+    # Final status
+    branch = f"task/{config.task_id}"
+    if config.merge:
+        print(f"\ndevelop-v3 complete: {config.task_id} (merged {branch})")
+    else:
+        print(f"\ndevelop-v3 complete: {config.task_id}")
+        print(f"  Changes on branch: {branch} (not merged)")
+        print(f"  To merge: git merge {branch}")
 
 
 def run_develop_v3_cli(args: list[str], prompts_dir: Path) -> None:
@@ -182,6 +204,7 @@ def run_develop_v3_cli(args: list[str], prompts_dir: Path) -> None:
     from_phase: str | None = None
     from_checkpoint = 0
     model: str | None = None
+    merge = False
 
     argv = list(args)
     while argv:
@@ -191,7 +214,7 @@ def run_develop_v3_cli(args: list[str], prompts_dir: Path) -> None:
             if not argv:
                 print("Error: --from requires a phase name", file=sys.stderr)
                 print(
-                    "Valid values: architect, setup, implement, checkpoint-N, verify, review, cleanup",
+                    "Valid values: setup, architect, implement, checkpoint-N, verify, review, cleanup",
                     file=sys.stderr,
                 )
                 sys.exit(1)
@@ -207,6 +230,9 @@ def run_develop_v3_cli(args: list[str], prompts_dir: Path) -> None:
             model = argv.pop(0)
         elif arg.startswith("--model="):
             model = arg[len("--model="):]
+            argv.pop(0)
+        elif arg == "--merge":
+            merge = True
             argv.pop(0)
         elif arg.startswith("-"):
             print(f"Error: Unknown option {arg}", file=sys.stderr)
@@ -235,7 +261,7 @@ def run_develop_v3_cli(args: list[str], prompts_dir: Path) -> None:
         elif from_phase not in PHASE_ORDER:
             print(f"Error: invalid --from value: {from_phase}", file=sys.stderr)
             print(
-                "Valid values: architect, setup, implement, checkpoint-N, verify, review, cleanup",
+                "Valid values: setup, architect, implement, checkpoint-N, verify, review, cleanup",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -263,6 +289,7 @@ def run_develop_v3_cli(args: list[str], prompts_dir: Path) -> None:
         project_root=project_root,
         roles_dir=roles_dir,
         model=model,
+        merge=merge,
     )
 
     run_pipeline(config)

@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from cplus.pipeline.orchestrator import PipelineConfig, run_pipeline
+from cplus.pipeline.orchestrator import PipelineConfig, run_pipeline, _ensure_initial_state
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +122,7 @@ def _stub_run_phase_with_setup(env: dict):
 # Tests: Context file handover per phase
 # ---------------------------------------------------------------------------
 
+@patch(f"{PATCH_BASE}.rewrite_environment_section")
 @patch(f"{PATCH_BASE}.commit_phase")
 @patch(f"{PATCH_BASE}.check_already_committed")
 @patch(f"{PATCH_BASE}.run_phase")
@@ -129,13 +130,12 @@ def test_architect_receives_spec_and_task_dir(
     mock_run_phase: MagicMock,
     mock_check: MagicMock,
     mock_commit: MagicMock,
+    mock_rewrite: MagicMock,
     pipeline_env: dict,
 ) -> None:
     """ARCHITECT should receive the spec file and task directory."""
     config = pipeline_env["config"]
     config.from_phase = "architect"
-    # Only run architect by patching PHASE_ORDER to just architect
-    mock_run_phase.side_effect = _stub_run_phase_with_setup(pipeline_env)
 
     with patch(f"{PATCH_BASE}.PHASE_ORDER", ["architect"]):
         run_pipeline(config)
@@ -148,13 +148,13 @@ def test_architect_receives_spec_and_task_dir(
 @patch(f"{PATCH_BASE}.commit_phase")
 @patch(f"{PATCH_BASE}.check_already_committed")
 @patch(f"{PATCH_BASE}.run_phase")
-def test_setup_receives_plan_and_state(
+def test_setup_receives_state_only(
     mock_run_phase: MagicMock,
     mock_check: MagicMock,
     mock_commit: MagicMock,
     pipeline_env: dict,
 ) -> None:
-    """SETUP should receive plan.md and state.md."""
+    """SETUP should receive only state.md (no plan.md — architect hasn't run yet)."""
     config = pipeline_env["config"]
     config.from_phase = "setup"
     mock_run_phase.side_effect = _stub_run_phase_with_setup(pipeline_env)
@@ -165,7 +165,7 @@ def test_setup_receives_plan_and_state(
 
     mock_run_phase.assert_called_once()
     _, _, _, context_files = mock_run_phase.call_args[0]
-    assert context_files == [task_dir / "plan.md", task_dir / "state.md"]
+    assert context_files == [task_dir / "state.md"]
 
 
 @patch(f"{PATCH_BASE}.commit_phase")
@@ -279,28 +279,27 @@ def test_cleanup_receives_state(
 @patch(f"{PATCH_BASE}.commit_phase")
 @patch(f"{PATCH_BASE}.check_already_committed")
 @patch(f"{PATCH_BASE}.run_phase")
-def test_cleanup_commits_to_project_root_not_worktree(
+def test_cleanup_does_not_commit(
     mock_run_phase: MagicMock,
     mock_check: MagicMock,
     mock_commit: MagicMock,
     pipeline_env: dict,
 ) -> None:
-    """CLEANUP should commit with worktree=None since the worktree is removed."""
+    """CLEANUP should not commit — it only removes the worktree."""
     config = pipeline_env["config"]
     config.from_phase = "cleanup"
 
     with patch(f"{PATCH_BASE}.PHASE_ORDER", ["cleanup"]):
         run_pipeline(config)
 
-    mock_commit.assert_called_once_with(
-        "cleanup", config.task_id, config.project_root, None
-    )
+    mock_commit.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
 # Tests: Phase sequencing and --from resume
 # ---------------------------------------------------------------------------
 
+@patch(f"{PATCH_BASE}.rewrite_environment_section")
 @patch(f"{PATCH_BASE}.commit_phase")
 @patch(f"{PATCH_BASE}.check_already_committed")
 @patch(f"{PATCH_BASE}.run_phase")
@@ -308,6 +307,7 @@ def test_full_pipeline_phase_order(
     mock_run_phase: MagicMock,
     mock_check: MagicMock,
     mock_commit: MagicMock,
+    mock_rewrite: MagicMock,
     pipeline_env: dict,
 ) -> None:
     """Full pipeline should run all phases in order."""
@@ -318,8 +318,8 @@ def test_full_pipeline_phase_order(
 
     phase_names = [c[0][0] for c in mock_run_phase.call_args_list]
     assert phase_names == [
-        "architect",
         "setup",
+        "architect",
         "checkpoint-1",
         "checkpoint-2",
         "verify",
@@ -408,6 +408,7 @@ def test_blocked_file_halts_pipeline(
 # Tests: Model selection
 # ---------------------------------------------------------------------------
 
+@patch(f"{PATCH_BASE}.rewrite_environment_section")
 @patch(f"{PATCH_BASE}.commit_phase")
 @patch(f"{PATCH_BASE}.check_already_committed")
 @patch(f"{PATCH_BASE}.run_phase")
@@ -415,6 +416,7 @@ def test_heavy_phases_use_opus_by_default(
     mock_run_phase: MagicMock,
     mock_check: MagicMock,
     mock_commit: MagicMock,
+    mock_rewrite: MagicMock,
     pipeline_env: dict,
 ) -> None:
     """Architect and review should default to 'opus' model."""
@@ -432,6 +434,7 @@ def test_heavy_phases_use_opus_by_default(
     assert models_by_phase["verify"] is None
 
 
+@patch(f"{PATCH_BASE}.rewrite_environment_section")
 @patch(f"{PATCH_BASE}.commit_phase")
 @patch(f"{PATCH_BASE}.check_already_committed")
 @patch(f"{PATCH_BASE}.run_phase")
@@ -439,6 +442,7 @@ def test_user_model_overrides_default(
     mock_run_phase: MagicMock,
     mock_check: MagicMock,
     mock_commit: MagicMock,
+    mock_rewrite: MagicMock,
     pipeline_env: dict,
 ) -> None:
     """--model flag should override the default model for all phases."""
@@ -497,3 +501,106 @@ def test_verify_and_review_run_in_worktree(
     assert mock_run_phase.call_count == 2
     for call_args in mock_run_phase.call_args_list:
         assert call_args[1]["cwd"] == worktree
+
+
+# ---------------------------------------------------------------------------
+# Tests: Setup and architect do not commit
+# ---------------------------------------------------------------------------
+
+@patch(f"{PATCH_BASE}.rewrite_environment_section")
+@patch(f"{PATCH_BASE}.commit_phase")
+@patch(f"{PATCH_BASE}.check_already_committed")
+@patch(f"{PATCH_BASE}.run_phase")
+def test_setup_and_architect_do_not_commit(
+    mock_run_phase: MagicMock,
+    mock_check: MagicMock,
+    mock_commit: MagicMock,
+    mock_rewrite: MagicMock,
+    pipeline_env: dict,
+) -> None:
+    """SETUP and ARCHITECT should not produce commits."""
+    config = pipeline_env["config"]
+    mock_run_phase.side_effect = _stub_run_phase_with_setup(pipeline_env)
+
+    with patch(f"{PATCH_BASE}.PHASE_ORDER", ["setup", "architect"]):
+        run_pipeline(config)
+
+    mock_commit.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Tests: --merge flag
+# ---------------------------------------------------------------------------
+
+@patch(f"{PATCH_BASE}.merge_task_branch")
+@patch(f"{PATCH_BASE}.commit_phase")
+@patch(f"{PATCH_BASE}.check_already_committed")
+@patch(f"{PATCH_BASE}.run_phase")
+def test_merge_flag_calls_merge_after_cleanup(
+    mock_run_phase: MagicMock,
+    mock_check: MagicMock,
+    mock_commit: MagicMock,
+    mock_merge: MagicMock,
+    pipeline_env: dict,
+) -> None:
+    """--merge should trigger merge_task_branch after cleanup."""
+    config = pipeline_env["config"]
+    config.from_phase = "cleanup"
+    config.merge = True
+
+    with patch(f"{PATCH_BASE}.PHASE_ORDER", ["cleanup"]):
+        run_pipeline(config)
+
+    mock_merge.assert_called_once_with(
+        f"task/{config.task_id}", config.project_root
+    )
+
+
+@patch(f"{PATCH_BASE}.merge_task_branch")
+@patch(f"{PATCH_BASE}.commit_phase")
+@patch(f"{PATCH_BASE}.check_already_committed")
+@patch(f"{PATCH_BASE}.run_phase")
+def test_no_merge_flag_skips_merge(
+    mock_run_phase: MagicMock,
+    mock_check: MagicMock,
+    mock_commit: MagicMock,
+    mock_merge: MagicMock,
+    pipeline_env: dict,
+) -> None:
+    """Without --merge, merge_task_branch should not be called."""
+    config = pipeline_env["config"]
+    config.from_phase = "cleanup"
+    config.merge = False
+
+    with patch(f"{PATCH_BASE}.PHASE_ORDER", ["cleanup"]):
+        run_pipeline(config)
+
+    mock_merge.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Tests: Initial state.md creation
+# ---------------------------------------------------------------------------
+
+def test_ensure_initial_state_creates_file(tmp_path: Path) -> None:
+    """_ensure_initial_state should create state.md if it doesn't exist."""
+    task_dir = tmp_path / "tasks" / "test-task"
+    task_dir.mkdir(parents=True)
+
+    _ensure_initial_state(task_dir, "test-task")
+
+    state_file = task_dir / "state.md"
+    assert state_file.is_file()
+    assert "# State: test-task" in state_file.read_text()
+
+
+def test_ensure_initial_state_preserves_existing(tmp_path: Path) -> None:
+    """_ensure_initial_state should not overwrite existing state.md."""
+    task_dir = tmp_path / "tasks" / "test-task"
+    task_dir.mkdir(parents=True)
+    state_file = task_dir / "state.md"
+    state_file.write_text("# Existing state\n\n## Environment\n- Worktree: `/tmp/wt`\n")
+
+    _ensure_initial_state(task_dir, "test-task")
+
+    assert "Existing state" in state_file.read_text()
