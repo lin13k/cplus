@@ -240,6 +240,7 @@ OPERATIONS
   role           Resolve roles to files and print them
   project        Manage project configuration (show, init, validate)
   develop-v3     Automated multi-session pipeline (architect→setup→implement→verify→review→cleanup)
+  generate-context  Generate module context docs (AGENT.md + context/*.md)
   help           Print this usage information
 
 EXAMPLES
@@ -255,6 +256,8 @@ EXAMPLES
   cplus project init                       # Create .cplus.yml template
   cplus develop-v3 .cplus/specs/0001.md   # Run automated pipeline
   cplus develop-v3 spec.md --from verify  # Resume from verify phase
+  cplus generate-context src/auth         # Generate context for auth module
+  cplus generate-context src/auth --dry-run  # Analyze only, don't generate
 
 OPTIONS
   --roles <role1,role2,...>  Inject roles (comma-separated or repeated)
@@ -634,6 +637,113 @@ handle_develop_v3() {
   echo "develop-v3 complete: $task_id"
 }
 
+# ============================================================================
+# generate-context: Module context documentation generator
+# ============================================================================
+
+# Handle generate-context operation
+handle_generate_context() {
+  local module_path=""
+  local dry_run=false
+
+  # Parse arguments
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=true
+        shift
+        ;;
+      --help|-h)
+        echo "Usage: cplus generate-context <module-path> [--dry-run]"
+        echo ""
+        echo "Generate context documentation (AGENT.md + context/*.md) for a module."
+        echo ""
+        echo "Arguments:"
+        echo "  <module-path>    Path to the module or directory to document"
+        echo ""
+        echo "Options:"
+        echo "  --dry-run        Stop after ANALYZER phase (scope proposal only)"
+        echo "  --help, -h       Show this help message"
+        echo ""
+        echo "Workflow: ANALYZER → GENERATOR → VALIDATOR"
+        echo ""
+        echo "Examples:"
+        echo "  cplus generate-context src/auth"
+        echo "  cplus generate-context src/auth --dry-run"
+        exit 0
+        ;;
+      -*)
+        echo "Error: Unknown option $1" >&2
+        echo "Usage: cplus generate-context <module-path> [--dry-run]" >&2
+        exit 1
+        ;;
+      *)
+        if [[ -z "$module_path" ]]; then
+          module_path="$1"
+        else
+          echo "Error: unexpected argument '$1'" >&2
+          echo "Usage: cplus generate-context <module-path> [--dry-run]" >&2
+          exit 1
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  # Validate module path
+  if [[ -z "$module_path" ]]; then
+    echo "Error: module path required" >&2
+    echo "Usage: cplus generate-context <module-path> [--dry-run]" >&2
+    exit 1
+  fi
+
+  if [[ ! -d "$module_path" ]]; then
+    echo "Error: module path not found or not a directory: $module_path" >&2
+    exit 1
+  fi
+
+  # Resolve action prompt
+  local action_prompt="$PROMPTS_DIR/actions/generate-context.md"
+  if [[ ! -f "$action_prompt" ]]; then
+    echo "Error: action prompt not found: $action_prompt" >&2
+    exit 1
+  fi
+
+  # Build composed prompt with action + project context + module path
+  local composed=""
+  composed=$(cat "$action_prompt")
+  composed+=$'\n'
+
+  # Append project context
+  local project_context
+  project_context=$(format_project_context) || true
+  if [[ -n "$project_context" ]]; then
+    composed+="$project_context"
+    composed+=$'\n'
+  fi
+
+  # Append module and options
+  composed+=$'\n### Additional Instructions\n'
+  composed+=$'\n**Module path**: `'"$module_path"'`\n'
+  if [[ "$dry_run" == "true" ]]; then
+    composed+=$'**Mode**: dry-run (stop after ANALYZER phase)\n'
+  fi
+
+  # Check that claude command exists
+  if ! command -v claude &> /dev/null; then
+    echo "Error: 'claude' command not found in PATH" >&2
+    exit 1
+  fi
+
+  echo "generate-context: $module_path"
+  if [[ "$dry_run" == "true" ]]; then
+    echo "Mode: dry-run (ANALYZER only)"
+  fi
+
+  # Run as interactive claude session
+  echo "$composed" | claude
+}
+
 # Main entry point
 main() {
   local operation=""
@@ -644,7 +754,7 @@ main() {
   # Parse operation (first arg if it's a known operation)
   if [[ $# -gt 0 ]]; then
     case "$1" in
-      run|pick|ls|role|project|develop-v3|help|--help|-h)
+      run|pick|ls|role|project|develop-v3|generate-context|help|--help|-h)
         operation="$1"
         shift
         ;;
@@ -683,6 +793,12 @@ main() {
   # Handle develop-v3 operation
   if [[ "$operation" == "develop-v3" ]]; then
     handle_develop_v3 "$@"
+    exit 0
+  fi
+
+  # Handle generate-context operation
+  if [[ "$operation" == "generate-context" ]]; then
+    handle_generate_context "$@"
     exit 0
   fi
 

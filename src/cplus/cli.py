@@ -31,6 +31,7 @@ PROMPTS_DIR = _find_prompts_dir()
 
 KNOWN_OPERATIONS = {
     "run", "pick", "ls", "role", "project", "develop-v3",
+    "generate-context",
     "setup-worktree", "cleanup-worktree", "help", "version",
 }
 
@@ -65,7 +66,7 @@ def _parse_args(argv: list[str]) -> dict:
         return result
 
     # For ls, project, develop-v3, setup-worktree, cleanup-worktree: rest is sub_args
-    if result["operation"] in ("ls", "project", "develop-v3", "setup-worktree", "cleanup-worktree"):
+    if result["operation"] in ("ls", "project", "develop-v3", "generate-context", "setup-worktree", "cleanup-worktree"):
         result["sub_args"] = args
         return result
 
@@ -413,6 +414,85 @@ def _handle_cleanup_worktree(sub_args: list[str]) -> None:
 
 
 
+def _handle_generate_context(sub_args: list[str]) -> None:
+    """Handle: cplus generate-context <module-path> [--dry-run]"""
+    module_path: str | None = None
+    dry_run = False
+    args = list(sub_args)
+
+    while args:
+        if args[0] == "--dry-run":
+            dry_run = True
+            args.pop(0)
+        elif args[0] in ("--help", "-h"):
+            print("""\
+Usage: cplus generate-context <module-path> [--dry-run]
+
+Generate context documentation (AGENT.md + context/*.md) for a module.
+
+Arguments:
+  <module-path>    Path to the module or directory to document
+
+Options:
+  --dry-run        Stop after ANALYZER phase (scope proposal only)
+  --help, -h       Show this help message
+
+Workflow: ANALYZER -> GENERATOR -> VALIDATOR
+
+Examples:
+  cplus generate-context src/auth
+  cplus generate-context src/auth --dry-run""")
+            return
+        elif args[0].startswith("-"):
+            print(f"Error: Unknown option {args[0]}", file=sys.stderr)
+            print("Usage: cplus generate-context <module-path> [--dry-run]", file=sys.stderr)
+            sys.exit(1)
+        else:
+            if module_path is None:
+                module_path = args.pop(0)
+            else:
+                print(f"Error: unexpected argument '{args[0]}'", file=sys.stderr)
+                print("Usage: cplus generate-context <module-path> [--dry-run]", file=sys.stderr)
+                sys.exit(1)
+            continue
+        continue
+
+    if module_path is None:
+        print("Error: module path required", file=sys.stderr)
+        print("Usage: cplus generate-context <module-path> [--dry-run]", file=sys.stderr)
+        sys.exit(1)
+
+    module = Path(module_path)
+    if not module.is_dir():
+        print(f"Error: module path not found or not a directory: {module_path}", file=sys.stderr)
+        sys.exit(1)
+
+    action_prompt = PROMPTS_DIR / "actions" / "generate-context.md"
+    if not action_prompt.is_file():
+        print(f"Error: action prompt not found: {action_prompt}", file=sys.stderr)
+        sys.exit(1)
+
+    # Compose prompt: action + project context + module info
+    composed = action_prompt.read_text()
+    project_context = _get_project_context()
+    if project_context:
+        composed += "\n" + project_context + "\n"
+
+    composed += "\n### Additional Instructions\n"
+    composed += f"\n**Module path**: `{module_path}`\n"
+    if dry_run:
+        composed += "**Mode**: dry-run (stop after ANALYZER phase)\n"
+
+    _check_claude()
+
+    print(f"generate-context: {module_path}")
+    if dry_run:
+        print("Mode: dry-run (ANALYZER only)")
+
+    result = subprocess.run(["claude"], input=composed, text=True)
+    sys.exit(result.returncode)
+
+
 def _handle_version() -> None:
     """Print cplus version."""
     try:
@@ -437,6 +517,7 @@ OPERATIONS
   role           Resolve roles to files and print them
   project        Manage project configuration (show, init, validate)
   develop-v3     Automated multi-session pipeline (architect->setup->implement->verify->review->cleanup)
+  generate-context  Generate module context docs (AGENT.md + context/*.md)
   help           Print this usage information
 
 EXAMPLES
@@ -452,6 +533,8 @@ EXAMPLES
   cplus project init                       # Create .cplus.yml template
   cplus develop-v3 .cplus/specs/0001.md   # Run automated pipeline
   cplus develop-v3 spec.md --from verify  # Resume from verify phase
+  cplus generate-context src/auth         # Generate context for auth module
+  cplus generate-context src/auth --dry-run  # Analyze only, don't generate
 
 OPTIONS
   --roles <role1,role2,...>  Inject roles (comma-separated or repeated)
@@ -486,6 +569,8 @@ def app_entry() -> None:
     elif op == "develop-v3":
         from cplus.pipeline.orchestrator import run_develop_v3_cli
         run_develop_v3_cli(parsed["sub_args"], PROMPTS_DIR)
+    elif op == "generate-context":
+        _handle_generate_context(parsed["sub_args"])
     elif op == "setup-worktree":
         _handle_setup_worktree(parsed["sub_args"])
     elif op == "cleanup-worktree":
