@@ -63,25 +63,31 @@ Rules:
 - 3–7 checkpoints total for most tasks
 
 ### state.md
+
+Update (not replace) the existing `state.md` in the task directory. It already contains an `## Environment` section written by the SETUP phase — **preserve that section**. Add/update these sections:
+
 ```
 # State: <task-id>
 
 **Phase**: ARCHITECT complete
-**Status**: Ready for SETUP
+**Status**: Ready for IMPLEMENT
 
 ## Progress
-- [x] ARCHITECT: task.md, plan.md, state.md written
-- [ ] SETUP
+- [x] SETUP: worktree created
+- [x] ARCHITECT: task.md, plan.md written
 - [ ] IMPLEMENT (list checkpoints)
 - [ ] VERIFY
 - [ ] REVIEW
 - [ ] CLEANUP
 
 ## Next Action
-SETUP: create worktree
+IMPLEMENT: begin checkpoint-1
 
 ## Blockers
 None.
+
+## Environment
+<preserve existing Environment section from state.md — do NOT delete or overwrite it>
 ```
 
 ## BLOCKED Condition

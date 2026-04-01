@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -47,6 +48,135 @@ def _model_for_phase(phase: str, user_model: str | None) -> str | None:
     if phase in HEAVY_PHASES:
         return "opus"
     return None
+
+
+def _has_phase_commit(phase: str, task_id: str, check_dir: Path) -> bool:
+    """Check if a phase commit exists in git log."""
+    commit_msg = f"cplus({phase}): {task_id}"
+    result = subprocess.run(
+        ["git", "log", "--oneline", f"--grep={commit_msg}"],
+        cwd=check_dir,
+        capture_output=True,
+        text=True,
+    )
+    return bool(result.stdout.strip())
+
+
+def _find_last_checkpoint(task_id: str, check_dir: Path) -> int:
+    """Find the highest checkpoint number committed for a task."""
+    result = subprocess.run(
+        ["git", "log", "--oneline", "--grep=cplus(checkpoint-"],
+        cwd=check_dir,
+        capture_output=True,
+        text=True,
+    )
+    if not result.stdout.strip():
+        return 0
+
+    max_cp = 0
+    for line in result.stdout.strip().split("\n"):
+        match = re.search(rf"cplus\(checkpoint-(\d+)\): {re.escape(task_id)}", line)
+        if match:
+            max_cp = max(max_cp, int(match.group(1)))
+    return max_cp
+
+
+def _detect_resume_phase(
+    task_dir: Path, task_id: str, project_root: Path,
+) -> tuple[str | None, int]:
+    """Detect the next phase to resume from based on existing workspace state.
+
+    Returns (from_phase, from_checkpoint). Returns (None, 0) if no progress detected.
+    """
+    if not task_dir.is_dir():
+        return None, 0
+
+    state_file = task_dir / "state.md"
+    task_file = task_dir / "task.md"
+    plan_file = task_dir / "plan.md"
+    report_file = task_dir / "report.md"
+
+    worktree_path = read_worktree_path(state_file) if state_file.is_file() else None
+    check_dir = Path(worktree_path) if worktree_path else project_root
+
+    # Only check task branch commits when worktree is available
+    has_worktree = worktree_path and Path(worktree_path).is_dir()
+
+    # Check phases in reverse order (latest completed first)
+
+    # review done → resume from cleanup
+    if report_file.is_file() and has_worktree and _has_phase_commit("review", task_id, check_dir):
+        return "cleanup", 0
+
+    # verify done → resume from review
+    if report_file.is_file() and has_worktree and _has_phase_commit("verify", task_id, check_dir):
+        return "review", 0
+
+    # architect done → check implement progress
+    if plan_file.is_file() and task_file.is_file():
+        if has_worktree:
+            last_cp = _find_last_checkpoint(task_id, Path(worktree_path))
+            if last_cp > 0:
+                checkpoints = parse_checkpoints(plan_file)
+                if last_cp >= len(checkpoints):
+                    return "verify", 0
+                return "implement", last_cp + 1
+        return "implement", 0
+
+    # setup done → resume from architect
+    if worktree_path:
+        return "architect", 0
+
+    # state.md exists but no worktree → resume from setup
+    if state_file.is_file():
+        return "setup", 0
+
+    return None, 0
+
+
+def _clean_existing_workspace(
+    task_dir: Path, task_id: str, project_root: Path,
+) -> None:
+    """Remove existing workspace state for a fresh start."""
+    state_file = task_dir / "state.md"
+
+    # Remove worktree if it exists
+    worktree_path = read_worktree_path(state_file) if state_file.is_file() else None
+    if worktree_path and Path(worktree_path).is_dir():
+        print(f"Removing worktree: {worktree_path}")
+        result = subprocess.run(
+            ["git", "worktree", "remove", "--force", str(worktree_path)],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print(f"Warning: failed to remove worktree: {result.stderr.strip()}", file=sys.stderr)
+        subprocess.run(["git", "worktree", "prune"], cwd=project_root, capture_output=True)
+
+    # Delete task branch if it exists
+    branch = f"task/{task_id}"
+    result = subprocess.run(
+        ["git", "branch", "--list", branch],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+    )
+    if result.stdout.strip():
+        print(f"Deleting branch: {branch}")
+        result = subprocess.run(
+            ["git", "branch", "-D", branch],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print(f"Warning: failed to delete branch: {result.stderr.strip()}", file=sys.stderr)
+
+    # Remove task directory contents
+    if task_dir.is_dir():
+        print(f"Removing workspace: {task_dir}")
+        shutil.rmtree(task_dir)
 
 
 def _ensure_initial_state(task_dir: Path, task_id: str) -> None:
@@ -205,6 +335,7 @@ def run_develop_v3_cli(args: list[str], prompts_dir: Path) -> None:
     from_checkpoint = 0
     model: str | None = None
     merge = False
+    redo = False
 
     argv = list(args)
     while argv:
@@ -234,6 +365,9 @@ def run_develop_v3_cli(args: list[str], prompts_dir: Path) -> None:
         elif arg == "--merge":
             merge = True
             argv.pop(0)
+        elif arg == "--redo":
+            redo = True
+            argv.pop(0)
         elif arg.startswith("-"):
             print(f"Error: Unknown option {arg}", file=sys.stderr)
             sys.exit(1)
@@ -244,7 +378,11 @@ def run_develop_v3_cli(args: list[str], prompts_dir: Path) -> None:
 
     if spec_file is None:
         print("Error: spec file required", file=sys.stderr)
-        print("Usage: cplus develop-v3 <spec-file> [--from <phase>]", file=sys.stderr)
+        print("Usage: cplus develop-v3 <spec-file> [--from <phase>] [--redo]", file=sys.stderr)
+        sys.exit(1)
+
+    if redo and from_phase:
+        print("Error: --redo and --from cannot be used together", file=sys.stderr)
         sys.exit(1)
 
     spec_path = Path(spec_file)
@@ -276,6 +414,23 @@ def run_develop_v3_cli(args: list[str], prompts_dir: Path) -> None:
     )
     project_root = Path(result.stdout.strip()) if result.returncode == 0 else Path.cwd()
     task_dir = project_root / ".cplus" / "tasks" / task_id
+
+    # Handle --redo: clean existing workspace before starting fresh
+    if redo and task_dir.is_dir():
+        _clean_existing_workspace(task_dir, task_id, project_root)
+
+    # Auto-resume: detect progress when no --from and no --redo
+    if not from_phase and not redo and task_dir.is_dir():
+        detected_phase, detected_cp = _detect_resume_phase(task_dir, task_id, project_root)
+        if detected_phase:
+            from_phase = detected_phase
+            from_checkpoint = detected_cp
+            if detected_cp > 0:
+                print(f"Existing progress detected, resuming from checkpoint-{detected_cp}")
+            else:
+                print(f"Existing progress detected, resuming from {detected_phase}")
+            print("  (use --redo to start fresh)")
+
     task_dir.mkdir(parents=True, exist_ok=True)
 
     roles_dir = prompts_dir / "roles" / "develop-v3"

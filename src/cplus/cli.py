@@ -549,8 +549,9 @@ EXAMPLES
   cplus role --roles arch,review           # Print resolved role files
   cplus project show                       # Show detected project context
   cplus project init                       # Create .cplus.yml template
-  cplus develop-v3 .cplus/specs/0001.md   # Run automated pipeline
+  cplus develop-v3 .cplus/specs/0001.md   # Run automated pipeline (auto-resumes)
   cplus develop-v3 spec.md --from verify  # Resume from verify phase
+  cplus develop-v3 spec.md --redo         # Discard progress and start fresh
   cplus develop-v3 spec.md --merge        # Auto-merge task branch on completion
   cplus generate-context src/auth         # Generate context for auth module
   cplus generate-context src/auth --dry-run  # Analyze only, don't generate

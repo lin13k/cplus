@@ -5,14 +5,15 @@ Run a fully automated, shell-orchestrated development pipeline where each phase 
 ## Usage
 
 ```bash
-cplus develop-v3 <spec-file>                    # Run all phases
+cplus develop-v3 <spec-file>                    # Run all phases (auto-resumes if progress exists)
 cplus develop-v3 <spec-file> --from <phase>     # Resume from a specific phase
+cplus develop-v3 <spec-file> --redo             # Discard existing progress and start fresh
 ```
 
 ## Pipeline
 
 ```
-ARCHITECT → SETUP → IMPLEMENT (per checkpoint) → VERIFY → REVIEW → CLEANUP
+SETUP → ARCHITECT → IMPLEMENT (per checkpoint) → VERIFY → REVIEW → CLEANUP
 ```
 
 Each phase is a separate `claude -p` subprocess reading context from files in `.cplus/tasks/<task-id>/`.
@@ -20,7 +21,7 @@ Each phase is a separate `claude -p` subprocess reading context from files in `.
 ## --from Values
 
 ```
-architect | setup | implement | checkpoint-N | verify | review | cleanup
+setup | architect | implement | checkpoint-N | verify | review | cleanup
 ```
 
 Use `--from` after a `git reset --hard <phase-commit>` to re-run from a specific point.
@@ -29,8 +30,8 @@ Use `--from` after a `git reset --hard <phase-commit>` to re-run from a specific
 
 Each phase produces a git commit:
 ```
-cplus(architect): <task-id>
 cplus(setup): <task-id>
+cplus(architect): <task-id>
 cplus(checkpoint-1): <task-id>
 cplus(checkpoint-2): <task-id>
 cplus(verify): <task-id>
