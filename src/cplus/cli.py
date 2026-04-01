@@ -33,6 +33,7 @@ KNOWN_OPERATIONS = {
     "run", "pick", "ls", "role", "project", "develop-v3",
     "generate-context",
     "setup-worktree", "cleanup-worktree", "help", "version",
+    "status",
 }
 
 
@@ -511,6 +512,47 @@ Examples:
     sys.exit(result.returncode)
 
 
+def _handle_status() -> None:
+    """Handle: cplus status — show active develop-v3 tasks."""
+    project_root = find_project_root()
+    if project_root is None:
+        print("No active tasks.")
+        return
+
+    tasks_dir = project_root / ".cplus" / "tasks"
+    if not tasks_dir.is_dir():
+        print("No active tasks.")
+        return
+
+    task_dirs = sorted(d for d in tasks_dir.iterdir() if d.is_dir())
+    if not task_dirs:
+        print("No active tasks.")
+        return
+
+    for task_dir in task_dirs:
+        task_id = task_dir.name
+        state_file = task_dir / "state.md"
+
+        phase = "unknown"
+        worktree = "unknown"
+
+        if state_file.is_file():
+            for line in state_file.read_text().splitlines():
+                if line.startswith("**Phase**:"):
+                    phase = line[len("**Phase**:"):].strip()
+                elif line.startswith("- Worktree:"):
+                    raw = line[len("- Worktree:"):].strip()
+                    worktree = raw.strip("`")
+
+        worktree_exists = "yes" if (worktree != "unknown" and Path(worktree).is_dir()) else "no"
+
+        print(f"  {task_id}")
+        print(f"    Phase:    {phase}")
+        print(f"    Worktree: {worktree}")
+        print(f"    Exists:   {worktree_exists}")
+        print()
+
+
 def _handle_version() -> None:
     """Print cplus version."""
     try:
@@ -536,6 +578,7 @@ OPERATIONS
   project        Manage project configuration (show, init, validate)
   develop-v3     Automated multi-session pipeline (setup->architect->implement->verify->review->cleanup)
   generate-context  Generate module context docs (AGENT.md + context/*.md)
+  status         Show active develop-v3 tasks and their status
   help           Print this usage information
 
 EXAMPLES
@@ -578,6 +621,8 @@ def app_entry() -> None:
 
     if op == "version":
         _handle_version()
+    elif op == "status":
+        _handle_status()
     elif op == "help":
         _handle_help()
     elif op == "ls":
