@@ -234,7 +234,7 @@ def run_pipeline(config: PipelineConfig) -> None:
                 "architect",
                 config.roles_dir / "architect.md",
                 config.task_dir,
-                [config.spec_file, config.task_dir],
+                [config.spec_file, config.task_dir / "state.md"],
                 model=_model_for_phase("architect", config.model),
             )
             # Architect may overwrite state.md — re-append Environment section

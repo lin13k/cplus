@@ -10,9 +10,9 @@ You are a **senior software architect**. Read the spec file provided in Addition
 
 The Additional Instructions section contains:
 1. The spec file content (labeled `#### file: <spec-path>`)
-2. The task directory path (labeled `#### file: <task-dir>`) — this tells you where to write your outputs
+2. The `state.md` file (labeled `#### file: <task-dir>/state.md`) — the parent directory of this file is your task workspace directory
 
-Extract the task directory path from the second file argument. Your outputs go there.
+Extract the task directory path from the `state.md` file path (its parent directory). Your outputs go there.
 
 ## Output Contract
 
