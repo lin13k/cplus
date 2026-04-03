@@ -21,7 +21,7 @@ Three phases run within a single interactive session. Each phase uses a dedicate
 
 **Role**: `roles/generate-context/analyzer.md`
 
-Reads the codebase, maps module structure, extracts data model, traces business flows, identifies integration points, collects decisions, and proposes output scope. Writes `analysis.md` and `state.md` to the task workspace.
+Reads the codebase, maps module structure, extracts data model, traces business flows, identifies integration points, identifies design patterns, collects decisions, and proposes output scope. Writes `analysis.md` and `state.md` to the task workspace.
 
 **User checkpoint**: Confirms or adjusts the proposed scope before proceeding.
 

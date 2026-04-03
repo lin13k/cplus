@@ -13,7 +13,7 @@ You are a **senior engineer joining a new team**. Your job is to read everything
 
 ## Steps
 
-Complete all 7 steps in order. Do not skip steps even if the module appears simple.
+Complete all 9 steps in order. Do not skip steps even if the module appears simple.
 
 ### Step 0: Read Project Configuration
 
@@ -58,7 +58,20 @@ Find where this module calls or is called by other modules:
 - **Auth/permission patterns** applied to this module's endpoints
 - **External system integrations** (payment, email, search, etc.)
 
-### Step 5: Collect Non-Obvious Decisions
+### Step 5: Identify Design Patterns
+
+Read service/business logic files to identify the module's recurring patterns:
+- **Layering**: How is the module structured? (e.g., controller → service → repository, resolver → use-case → adapter)
+- **Data access pattern**: Active Record, Repository, Data Mapper, query builder, raw SQL
+- **Control flow pattern**: Orchestration (one service calls many) vs choreography (events drive flow)
+- **Error handling strategy**: How errors propagate, whether there's a common error type hierarchy
+- **Dependency injection**: Constructor injection, module injection, service locator, or manual wiring
+- **Async/event patterns**: Fire-and-forget, saga, eventual consistency, pub/sub topics
+- **API layer pattern**: REST resource controllers, GraphQL resolvers, RPC handlers — how input validation and auth are layered in
+
+Focus on patterns that a developer **must follow** to keep the module consistent. If the module mixes patterns (e.g., some services use repository, others use raw queries), note that explicitly.
+
+### Step 6: Collect Non-Obvious Decisions
 
 Look for:
 - Comments explaining **"why"** (not "what")
@@ -66,22 +79,22 @@ Look for:
 - Workarounds or technical debt markers (`TODO`, `HACK`, `FIXME`)
 - Feature flags gating behavior in this module
 
-### Step 6: Review Existing Documentation
+### Step 7: Review Existing Documentation
 
 Check project docs, root `AGENT.md`, and any inline docs already in the module. Note:
 - What is already documented (avoid duplicating)
 - What is outdated or contradicts the code
 - Gaps that need filling
 
-### Step 7: Determine Scope and Propose Output
+### Step 8: Determine Scope and Propose Output
 
 Based on what was found, propose the appropriate output scope:
 
 | Complexity | Criteria | Output |
 |-----------|----------|--------|
-| **Simple** | Few services, straightforward CRUD, no complex flows | `AGENT.md` only |
+| **Simple** | Single consistent pattern, straightforward CRUD, no complex flows | `AGENT.md` only (patterns documented in "Design Patterns" section) |
 | **Moderate** | Multiple entities, some flows, cross-module calls | `AGENT.md` + `flows.md` + `data-model.md` |
-| **Complex** | State machines, many integrations, non-obvious decisions | Full `AGENT.md` + all applicable `context/` files |
+| **Complex** | Mixed patterns, state machines, many integrations, non-obvious decisions | Full `AGENT.md` + all applicable `context/` files |
 
 Present the proposed scope with reasoning. **Wait for the user to confirm or adjust** before the workflow proceeds to GENERATOR.
 
@@ -127,6 +140,16 @@ Save to `.cplus/tasks/generate-context-{{module-name}}/analysis.md`:
 ### Integration Points
 - [cross-module calls, external systems, events]
 
+### Design Patterns
+- **Layering**: [e.g., resolvers → services → repositories]
+- **Data access**: [e.g., Repository pattern via Prisma]
+- **Control flow**: [e.g., orchestration — services call repositories directly]
+- **Error handling**: [e.g., typed AppError subclasses, caught at resolver layer]
+- **Dependency injection**: [e.g., constructor injection via NestJS modules]
+- **Async/events**: [e.g., Kafka pub/sub, fire-and-forget for notifications]
+- **API layer**: [e.g., GraphQL resolvers with guard-based auth]
+- **Pattern consistency notes**: [e.g., "all services follow repository pattern except FooService which uses raw queries"]
+
 ### Non-Obvious Decisions
 - [items that need documentation]
 
@@ -166,6 +189,7 @@ Before marking ANALYZER as complete, verify:
 - [ ] Data model entities and relationships identified
 - [ ] At least 1 business flow fully traced
 - [ ] Cross-module dependencies mapped
+- [ ] Design patterns identified and documented
 - [ ] User has answered any clarification questions
 - [ ] Scope proposed and user-approved
 - [ ] `analysis.md` saved to task workspace
@@ -174,7 +198,7 @@ Before marking ANALYZER as complete, verify:
 ## Dry-Run Behavior
 
 If `--dry-run` is set:
-1. Complete all 7 steps above
+1. Complete all 9 steps above
 2. Save `analysis.md` and `state.md` to the task workspace
 3. Output the analysis summary to the user
 4. **Stop here** — do not proceed to GENERATOR or VALIDATOR

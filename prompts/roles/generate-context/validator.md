@@ -27,6 +27,7 @@ For each file, service, entity, or reference in the generated docs:
 - **Status transitions**: verify they match the code logic
 - **Relationships**: verify foreign keys and cardinality match the schema
 - **Table/model names**: verify casing and naming match the actual definitions
+- **Design patterns**: verify stated patterns match the actual code structure (e.g., if "Repository pattern" is claimed, confirm `*.repository.*` files exist and are used by services; if "constructor injection" is claimed, confirm constructors accept dependencies)
 
 Mark each item as passing or failing. For failures, include the actual value found in code.
 
@@ -38,6 +39,7 @@ Mark each item as passing or failing. For failures, include the actual value fou
 - Cross-module imports are captured in `integration-points.md` (if that file was generated)
 - Key business flows have corresponding entries in `flows.md` (if that file was generated)
 - `AGENT.md` "Common Operations" table includes Input and Output columns (type names from API schema)
+- `AGENT.md` "Design Patterns" section is populated with specific, verifiable patterns (not generic placeholders)
 - `AGENT.md` "Gotchas" section is populated (not empty or placeholder-only)
 - `AGENT.md` "Module Boundaries" section has `<!-- FILL: ... -->` placeholder comments
 - `AGENT.md` "Testing" section has `<!-- FILL: ... -->` placeholder comments

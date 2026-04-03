@@ -50,6 +50,20 @@ Create `{{module-path}}/AGENT.md` — the entry point document. Keep it concise 
 ## Module Structure
 [Brief description of subdirectories and their roles]
 
+## Design Patterns
+- **Layering**: [e.g., "Resolvers → Services → Repositories. Services contain business logic; repositories handle DB access."]
+- **Data access**: [e.g., "Repository pattern via Prisma. All queries go through `*.repository.ts` files."]
+- **Control flow**: [e.g., "Orchestration — BookingService calls PaymentService, NotificationService sequentially."]
+- **Error handling**: [e.g., "Services throw typed `AppError` subclasses. Resolvers catch and map to GraphQL errors."]
+- **Dependency injection**: [e.g., "Constructor injection via NestJS modules. All services declare dependencies in constructors."]
+- **Async/events**: [e.g., "Events published via Kafka. Consumers in `jobs/` directory."]
+- **API layer**: [e.g., "GraphQL resolvers with guard-based auth. Input validated via class-validator DTOs."]
+- **Pattern consistency notes**: [e.g., "All services follow repository pattern except LegacyFooService which uses raw SQL — migration planned."]
+
+> Document the patterns a developer must follow to keep this module consistent.
+> Omit sub-fields that don't apply (e.g., no Async/events if the module is purely synchronous).
+> When modifying this module, follow the existing patterns. If you need to deviate, document why in context/decisions.md.
+
 ## Business Rules
 - Rule 1: [concise statement]
 - Rule 2: [concise statement]
@@ -261,6 +275,7 @@ Before marking GENERATOR as complete, verify:
 - [ ] `AGENT.md` is concise and scannable (80-150 lines guideline)
 - [ ] "How to Use This Context" only lists `context/` files that actually exist; omitted if no context/ files
 - [ ] "Deeper Reference" section only lists `context/` files that actually exist
+- [ ] "Design Patterns" section populated with patterns from `analysis.md`; not left empty or generic
 - [ ] "Common Operations" table includes Input and Output columns from API schema
 - [ ] "Gotchas" section populated with non-obvious patterns found in code; not left empty
 - [ ] "Module Boundaries" and "Testing" sections have `<!-- FILL: ... -->` placeholders (do NOT invent content)
